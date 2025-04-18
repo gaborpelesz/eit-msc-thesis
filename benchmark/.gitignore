@@ -1,0 +1,11 @@
+/data/
+build/
+
+.vscode/
+.clangd/
+
+.DS_Store
+
+__pycache__
+Pipfile
+Pipfile.lock

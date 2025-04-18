@@ -1,0 +1,12 @@
+[submodule "HPM-MVS_plusplus"]
+	path = benchmark/HPM-MVS_plusplus
+	url = https://github.com/gaborpelesz/HPM-MVS_plusplus
+[submodule "APD-MVS"]
+	path = benchmark/APD-MVS
+	url = https://github.com/gaborpelesz/APD-MVS.git
+[submodule "ACMMP"]
+	path = benchmark/ACMMP
+	url = https://github.com/gaborpelesz/ACMMP.git
+[submodule "HPM-MVS"]
+	path = benchmark/HPM-MVS
+	url = https://github.com/gaborpelesz/HPM-MVS.git
