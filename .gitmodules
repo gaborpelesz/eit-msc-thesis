@@ -10,3 +10,6 @@
 [submodule "HPM-MVS"]
 	path = benchmark/HPM-MVS
 	url = https://github.com/gaborpelesz/HPM-MVS.git
+[submodule "gipuma"]
+	path = benchmark/gipuma
+	url = https://github.com/gaborpelesz/gipuma.git
