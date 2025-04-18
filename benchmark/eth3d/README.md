@@ -1,5 +1,21 @@
 # ETH3D dataset
 
+Usage:
+
+```sh
+# download single dataset, if dataset exists in
+# datasets it won't redownload
+python3 -m eth3d courtyard -o datasets 
+
+# download multiple dataset
+python3 -m eth3d courtyard delivery_area -o datasets
+
+# rescale dataset to new width, if dataset does not exist
+# it will download first
+python3 -m eth3d courtyard --width 2300 -o datasets
+```
+
+
 we are downloading and extracting:
 - undistorted
 - eval
