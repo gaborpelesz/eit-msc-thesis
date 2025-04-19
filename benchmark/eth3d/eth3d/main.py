@@ -1,8 +1,8 @@
 import os
 import argparse
 
-from eth3d_downloader import eth3d_download_dataset
-from eth3d_rescale import eth3d_rescale_dataset
+from eth3d.downloader import download_dataset
+from eth3d.rescale import rescale_dataset
 
 ETH3D_DATASETS_TRAINING = [
     "courtyard",
@@ -77,20 +77,23 @@ def main():
     for i, dataset in enumerate(args.datasets):
         if not os.path.exists(os.path.join(args.outdir, dataset)):
             print(f"{i+1} / {len(args.datasets)}: downloading {dataset}")
-            eth3d_download_dataset(
+            download_dataset(
                 dataset_name=dataset,
                 datasets_dir=args.outdir,
                 with_original_jpg=args.with_jpg,
                 with_eval=(dataset in ETH3D_DATASETS_TRAINING),
                 with_depth=(args.with_depth and (dataset in ETH3D_DATASETS_TRAINING)),
             )
+        else:
+            print(f"{i+1} / {len(args.datasets)}: {dataset} already exists, skipping.")
+
         if not args.width is None and not os.path.exists(
             os.path.join(
                 args.outdir, dataset, f"{dataset}_dslr_undistorted_{args.width}"
             )
         ):
             print(f"{i+1} / {len(args.datasets)}: rescaling {dataset}")
-            eth3d_rescale_dataset(
+            rescale_dataset(
                 os.path.join(args.outdir, dataset, f"{dataset}_dslr_undistorted"),
                 new_width=args.width,
             )

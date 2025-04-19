@@ -1,10 +1,14 @@
 # ETH3D dataset
 
-Usage:
-
+Install dependencies:
 ```sh
-# download single dataset, if dataset exists in
-# datasets it won't redownload
+python3 -m pip install -r requirements.txt
+```
+
+Usage:
+```sh
+# download single dataset
+# if dataset already exists in `datasets` it won't redownload
 python3 -m eth3d courtyard -o datasets 
 
 # download multiple dataset
@@ -13,10 +17,15 @@ python3 -m eth3d courtyard delivery_area -o datasets
 # rescale dataset to new width, if dataset does not exist
 # it will download first
 python3 -m eth3d courtyard --width 2300 -o datasets
+
+# download original jpg images next to the undistorted ones
+python3 -m eth3d courtyard -o datasets --with-jpg
+
+# download ground truth depth
+python3 -m eth3d courtyard -o datasets --with-depth
 ```
 
-
-we are downloading and extracting:
+we are downloading and extracting the following archives:
 - undistorted
 - eval
 
@@ -43,3 +52,30 @@ Content:
 - scan_alignment.mlp
 
 If more laser scans are available in a dataset, than more `.ply` files are present in the content of the `eval` archive. Between these, a `scan_alignment.mlp` file stores the 4x4 transformation matrix.
+
+List of datasets:
+- courtyard
+- delivery_area
+- electro
+- facade
+- kicker
+- meadow
+- office
+- pipes
+- playground
+- relief
+- relief_2
+- terrace
+- terrains
+- botanical_garden
+- boulders
+- bridge
+- door
+- exhibition_hall
+- lecture_room
+- living_room
+- lounge
+- observatory
+- old_computer
+- statue
+- terrace_2

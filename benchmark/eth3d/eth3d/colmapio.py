@@ -3,8 +3,8 @@ import collections
 import numpy as np
 
 
-Camera = collections.namedtuple(
-    "Camera", ["id", "model", "width", "height", "params"])
+Camera = collections.namedtuple("Camera", ["id", "model", "width", "height", "params"])
+
 
 def write_cameras_text(cameras, path):
     """
@@ -21,6 +21,7 @@ def write_cameras_text(cameras, path):
             to_write = [cam.id, cam.model, cam.width, cam.height, *cam.params]
             line = " ".join([str(elem) for elem in to_write])
             fid.write(line + "\n")
+
 
 def read_cameras_text(path):
     """
@@ -42,7 +43,7 @@ def read_cameras_text(path):
                 width = int(elems[2])
                 height = int(elems[3])
                 params = np.array(tuple(map(float, elems[4:])))
-                cameras[camera_id] = Camera(id=camera_id, model=model,
-                                            width=width, height=height,
-                                            params=params)
+                cameras[camera_id] = Camera(
+                    id=camera_id, model=model, width=width, height=height, params=params
+                )
     return cameras
