@@ -371,7 +371,7 @@ def calc_score_old_chunked(queue_chunk, *args, **kargs):
 def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interval_scale=1, max_d=192, multiprocessing=True):
     t0 = time.perf_counter()
     print("Reading model...")
-    sparse_dir = os.path.join(dense_folder, 'sparse')
+    sparse_dir = os.path.join(dense_folder, 'dslr_calibration_undistorted')
     cameras, images, points3d = read_model(sparse_dir, ".txt")
     num_images = len(list(images.items()))
     t1 = time.perf_counter()
