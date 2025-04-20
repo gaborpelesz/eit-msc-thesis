@@ -41,7 +41,11 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--outdir", "-o", type=str, help="Output directory to download the scans to."
+        "--outdir",
+        "-o",
+        required=True,
+        type=str,
+        help="Output directory to download the scans to.",
     )
     parser.add_argument(
         "--width",
@@ -87,14 +91,12 @@ def main():
         else:
             print(f"{i+1} / {len(args.datasets)}: {dataset} already exists, skipping.")
 
-        if not args.width is None and not os.path.exists(
-            os.path.join(
-                args.outdir, dataset, f"{dataset}_dslr_undistorted_{args.width}"
-            )
-        ):
+        rescaled_outpath = os.path.join(args.outdir, f"{dataset}_{args.width}")
+        if args.width is not None and not os.path.exists(rescaled_outpath):
             print(f"{i+1} / {len(args.datasets)}: rescaling {dataset}")
             rescale_dataset(
-                os.path.join(args.outdir, dataset, f"{dataset}_dslr_undistorted"),
+                os.path.join(args.outdir, dataset),
+                rescaled_outpath,
                 new_width=args.width,
             )
 
