@@ -552,10 +552,11 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     t0 = time.perf_counter()
     image_dir = os.path.join(args.dense_folder, 'images')
 
-    def copy_to_jpg(image):
+    def copy_to_jpg(i):
+        image = images[i]
         img_path = os.path.join(image_dir, image.name)
         out_path = os.path.join(save_images_dir, '%08d.jpg' % i)
-        if not img_path.endswith(".jpg"):
+        if not os.path.splitext(img_path)[1].lower() in (".jpg", ".jpeg"):
             cv2.imwrite(out_path, cv2.imread(img_path))
         else:
             shutil.copyfile(img_path, out_path)
@@ -563,12 +564,12 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     if multiprocessing:
         with ThreadPool(processes=os.cpu_count()) as pool:
             i = 0
-            for _ in pool.imap_unordered(copy_to_jpg, images):
+            for _ in pool.imap_unordered(copy_to_jpg, range(len(images))):
                 print(f"Copying image: {i+1} / {len(images)}")
                 i+=1
     else:
-        for i, image in enumerate(images):
-            copy_to_jpg(image)
+        for i in range(len(images)):
+            copy_to_jpg(i)
             print(f"Copying image: {i+1} / {len(images)}")
 
     t1 = time.perf_counter()
