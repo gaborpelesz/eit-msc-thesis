@@ -75,30 +75,41 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
+def prepare_datasets(
+    datasets: list[str],
+    outdir: str,
+    width: int | None = None,
+    with_jpg: bool = False,
+    with_depth: bool = False,
+):
 
-    for i, dataset in enumerate(args.datasets):
-        if not os.path.exists(os.path.join(args.outdir, dataset)):
-            print(f"{i+1} / {len(args.datasets)}: downloading {dataset}")
+    for i, dataset in enumerate(datasets):
+        if not os.path.exists(os.path.join(outdir, dataset)):
+            print(f"{i+1} / {len(datasets)}: downloading {dataset}")
             download_dataset(
                 dataset_name=dataset,
-                datasets_dir=args.outdir,
-                with_original_jpg=args.with_jpg,
+                datasets_dir=outdir,
+                with_original_jpg=with_jpg,
                 with_eval=(dataset in ETH3D_DATASETS_TRAINING),
-                with_depth=(args.with_depth and (dataset in ETH3D_DATASETS_TRAINING)),
+                with_depth=(with_depth and (dataset in ETH3D_DATASETS_TRAINING)),
             )
         else:
-            print(f"{i+1} / {len(args.datasets)}: {dataset} already exists, skipping.")
+            print(f"{i+1} / {len(datasets)}: {dataset} already exists, skipping.")
 
-        rescaled_outpath = os.path.join(args.outdir, f"{dataset}_{args.width}")
-        if args.width is not None and not os.path.exists(rescaled_outpath):
-            print(f"{i+1} / {len(args.datasets)}: rescaling {dataset}")
+        rescaled_outpath = os.path.join(outdir, f"{dataset}_{width}")
+        if width is not None and not os.path.exists(rescaled_outpath):
+            print(f"{i+1} / {len(datasets)}: rescaling {dataset}")
             rescale_dataset(
-                os.path.join(args.outdir, dataset),
+                os.path.join(outdir, dataset),
                 rescaled_outpath,
-                new_width=args.width,
+                new_width=width,
             )
+
+def main():
+    args = parse_args()
+    prepare_datasets(
+        args.datasets, args.outdir, args.width, args.with_jpg, args.with_depth
+    )
 
 
 # download all datasets
