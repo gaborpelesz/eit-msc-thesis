@@ -3,13 +3,61 @@ import argparse
 import sys
 import os
 import time
-
+import shutil
 try:
     sys.path.append(os.path.join(os.path.dirname(__file__), "eth3d"))
     from eth3d import prepare_datasets, ETH3D_DATASETS_TRAINING, ETH3D_DATASETS_TEST
 except ImportError:
     print("Error: eth3d module not found. Please ensure it is installed correctly.")
     sys.exit(1)
+
+
+class Method:
+    name: str
+    exe: str
+
+    def __init__(self, name: str, exe: str, outply_path: str):
+        self.name = name
+        self.exe = exe
+        self.prepared_dataset_dir = None
+        self.outply_path = outply_path
+    
+    def prepare(self, dataset_dir: str): 
+        dataset_name = os.path.basename(dataset_dir)
+        self.prepared_dataset_dir = os.path.join(os.path.dirname(dataset_dir), f"{dataset_name}_mvsnet")
+        subprocess.check_call(
+            [
+                sys.executable,
+                "colmap2mvsnet_acm_perf.py",
+                "--dense_folder",
+                os.path.join(dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"),
+                "--save_folder",
+                self.prepared_dataset_dir,
+            ]
+        )
+
+    def run(self):
+        if not self.prepared_dataset_dir:
+            raise ValueError("Dataset not prepared")
+        subprocess.check_call(
+            [
+                self.exe,
+                self.prepared_dataset_dir,
+            ]
+        )
+
+    def get_reconstructed_ply_path(self):
+        if not self.prepared_dataset_dir:
+            raise ValueError("Dataset not prepared")
+        return os.path.join(self.prepared_dataset_dir, self.outply_path)
+
+
+methods = [
+    Method("ACMH", "ACMH/build/ACMH", "ACMH/ACMH_model.ply"),
+    Method("ACMM", "ACMM/build/ACMM", "ACMM/ACMM_model.ply"),
+    Method("ACMP", "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
+    Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
+]
 
 
 class EvaluationResult:
@@ -71,6 +119,7 @@ def main():
     parser.add_argument(
         "--datasets",
         nargs="+",
+        required=True,
         default=[],
         choices=ETH3D_DATASETS_TRAINING + ETH3D_DATASETS_TEST,
         help="List of datasets to evaluate e.g. `--datasets courtyard`",
@@ -85,54 +134,49 @@ def main():
     # 1. download datasets
     prepare_datasets(args.datasets, os.path.join(args.output, "datasets"), args.width)
 
-    results: list[EvaluationResult] = []
+    log_file = f"{args.output}/evaluation_results.log"
+    if os.path.exists(log_file):
+        shutil.move(log_file, f"{log_file}_{time.strftime('%Y%m%d_%H%M%S')}")
+    with open(log_file, 'w') as f:
+        f.write("Evaluation Results\n")
+        f.write("-"*50 + "\n")
+        f.write(f"Datasets: {', '.join(args.datasets)}\n")
+        f.write(f"Tolerances: {args.tolerances}\n")
+        f.write(f"Width: {args.width}\n")
+        f.write("-"*50 + "\n")
 
     for dataset in args.datasets:
-        # 1.1 convert colmap to mvsnet format
-        subprocess.check_call(
-            [
-                sys.executable,
-                "colmap2mvsnet_acm_perf.py",
-                "--dense_folder",
-                f"{args.output}/datasets/{dataset}/{dataset}_dslr_undistorted/{dataset}",
-                "--save_folder",
-                f"{args.output}/datasets/{dataset}_mvsnet",
-            ]
-        )
-        # 2. will run mvs matrix, currently only ACMH
-        method = "ACMH"
-        t0 = time.time()
-        subprocess.check_call(
-            [
-                "ACMH/build/ACMH",
-                f"{args.output}/datasets/{dataset}_mvsnet",
-            ]
-        )
-        # 3. run evaluation
-        method_time = time.time() - t0
-        print(f"Method {method} took {method_time} seconds")
-        print("running evaluation")
-        result = subprocess.run(
-            [
-                "eth3d/multi-view-evaluation/build/ETH3DMultiViewEvaluation",
-                "--reconstruction_ply_path",
-                f"{args.output}/datasets/{dataset}_mvsnet/ACMH/ACMH_model.ply",
-                "--ground_truth_mlp_path",
-                f"{args.output}/datasets/{dataset}/{dataset}_dslr_scan_eval/{dataset}/dslr_scan_eval/scan_alignment.mlp",
-                "--tolerances",
-                args.tolerances,
-            ],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        print(result.stdout)
+        dataset_dir = os.path.join(args.output, "datasets", dataset)
+        if args.width:
+            dataset_dir += f"_{args.width}"
+        for method in methods:
+            method.prepare(dataset_dir)
 
-        results.append(parse_stdout_into_eval_result(dataset, method, method_time, tolerances, result.stdout))
+            t0 = time.time()
+            method.run()
+            method_time = time.time() - t0
+            print(f"Method {method.name} took {method_time} seconds")
 
-    log_file = f"{args.output}/evaluation_results.log"
-    with open(log_file, 'w') as f:
-        f.writelines(str(result) for result in results)
+            print("Running evaluation")
+            res = subprocess.run(
+                [
+                    "eth3d/multi-view-evaluation/build/ETH3DMultiViewEvaluation",
+                    "--reconstruction_ply_path",
+                    method.get_reconstructed_ply_path(),
+                    "--ground_truth_mlp_path",
+                    os.path.join(dataset_dir, f"{dataset}_dslr_scan_eval/{dataset}/dslr_scan_eval/scan_alignment.mlp"),
+                    "--tolerances",
+                    args.tolerances,
+                ],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+
+            result: EvaluationResult = parse_stdout_into_eval_result(dataset, method.name, method_time, tolerances, res.stdout)
+
+            with open(log_file, 'a') as f:
+                f.write(str(result))
 
 if __name__ == "__main__":
     main()
