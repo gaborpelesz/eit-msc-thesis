@@ -44,12 +44,15 @@ class Method:
     def run(self):
         if not self.prepared_dataset_dir:
             raise ValueError("Dataset not prepared")
-        subprocess.check_call(
-            [
-                self.exe,
-                self.prepared_dataset_dir,
-            ]
-        )
+        cmd = [
+            self.exe,
+            self.prepared_dataset_dir,
+        ]
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Running cmd: {' '.join(cmd)}", file=sys.stderr)
+            exit(1)
 
     def get_reconstructed_ply_path(self):
         if not self.prepared_dataset_dir:
