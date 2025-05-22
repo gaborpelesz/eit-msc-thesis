@@ -65,6 +65,7 @@ methods = [
     Method("ACMM", "ACMM/build/ACMM", "ACMM/ACMM_model.ply"),
     Method("ACMP", "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
     Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
+    Method("HPM", "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
 ]
 
 
