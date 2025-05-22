@@ -7,7 +7,7 @@ import shutil
 
 try:
     sys.path.append(os.path.join(os.path.dirname(__file__), "eth3d"))
-    from eth3d import prepare_datasets, ETH3D_DATASETS_TRAINING, ETH3D_DATASETS_TEST
+    from eth3d import prepare_datasets, ETH3D_DATASETS_TRAINING, ETH3D_DATASETS_TEST  # type: ignore
 except ImportError:
     print("Error: eth3d module not found. Please ensure it is installed correctly.")
     sys.exit(1)
@@ -22,6 +22,8 @@ class Method:
         self.exe = exe
         self.prepared_dataset_dir = None
         self.outply_path = outply_path
+
+        assert os.path.exists(self.exe), f"Executable {self.exe} does not exist"
 
     def prepare(self, dataset_dir: str):
         dataset_name = os.path.basename(dataset_dir)
@@ -190,6 +192,13 @@ def main():
         choices=ETH3D_DATASETS_TRAINING + ETH3D_DATASETS_TEST,
         help="List of datasets to evaluate e.g. `--datasets courtyard`",
     )
+    parser.add_argument(
+        "--methods",
+        nargs="*",
+        default=[m.name for m in methods],
+        choices=[m.name for m in methods],
+        help="List of methods to evaluate e.g. `--methods ACMH ACMM`. By default, all methods are evaluated.",
+    )
     parser.add_argument("--output", type=str, default="evaluation")
     parser.add_argument("--width", type=int, default=None)
     parser.add_argument("--tolerances", type=str, default="0.01,0.02,0.05,0.1,0.2")
@@ -210,18 +219,23 @@ def main():
     if os.path.exists(log_file):
         shutil.move(log_file, f"{log_file}_{time.strftime('%Y%m%d_%H%M%S')}")
     with open(log_file, "w") as f:
-        f.write("Evaluation Results\n")
-        f.write("-" * 50 + "\n")
-        f.write(f"Datasets: {', '.join(args.datasets)}\n")
-        f.write(f"Tolerances: {args.tolerances}\n")
-        f.write(f"Width: {args.width}\n")
-        f.write("-" * 50 + "\n")
+        f.write(
+            "Evaluation Results\n"
+            f"{'-' * 50}\n"
+            f"Datasets: {', '.join(args.datasets)}\n"
+            f"Methods: {', '.join(args.methods)}\n"
+            f"Tolerances: {args.tolerances}\n"
+            f"Width: {args.width}\n"
+            f"{'-' * 50}\n"
+        )
+
+    selected_methods = [m for m in methods if m.name in args.methods]
 
     for dataset in args.datasets:
         dataset_dir = os.path.join(args.output, "datasets", dataset)
         if args.width:
             dataset_dir += f"_{args.width}"
-        for method in methods:
+        for method in selected_methods:
             method.prepare(dataset_dir)
 
             t0 = time.time()
@@ -247,6 +261,8 @@ def main():
                 capture_output=True,
                 text=True,
             )
+
+            print(res.stdout)
 
             accuracies, completenesses, f1_scores = parse_stdout_into_eval_result(
                 res.stdout
