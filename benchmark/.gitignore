@@ -3,9 +3,11 @@ build/
 
 .vscode/
 .clangd/
+.cache/
 
 .DS_Store
 
+.mypy_cache/
 __pycache__
 Pipfile
 Pipfile.lock
