@@ -13,3 +13,6 @@
 [submodule "gipuma"]
 	path = benchmark/gipuma
 	url = https://github.com/gaborpelesz/gipuma.git
+[submodule "ACMH"]
+	path = benchmark/ACMH
+	url = https://github.com/gaborpelesz/ACMH.git
