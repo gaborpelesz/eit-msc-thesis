@@ -17,31 +17,31 @@ class Method:
     name: str
     exe: str
 
-    def __init__(self, name: str, exe: str, outply_path: str):
+    def __init__(self, name: str, exe: str, outply_path: str, padding: bool = False):
         self.name = name
         self.exe = exe
-        self.prepared_dataset_dir = None
+        self.prepared_dataset_dir: str | None = None
         self.outply_path = outply_path
+        self.padding = padding
 
         assert os.path.exists(self.exe), f"Executable {self.exe} does not exist"
 
-    def prepare(self, dataset_dir: str):
-        dataset_name = os.path.basename(dataset_dir)
-        self.prepared_dataset_dir = os.path.join(
-            os.path.dirname(dataset_dir), f"{dataset_name}_mvsnet"
-        )
-        subprocess.check_call(
-            [
-                sys.executable,
-                "colmap2mvsnet_acm_perf.py",
-                "--dense_folder",
-                os.path.join(
-                    dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
-                ),
-                "--save_folder",
-                self.prepared_dataset_dir,
-            ]
-        )
+    def prepare(self, dataset_dir: str, dataset_name):
+        self.prepared_dataset_dir = dataset_dir.rstrip("/") + "_mvsnet"
+        cmd = [
+            sys.executable,
+            "colmap2mvsnet_acm_perf.py",
+            "--dense_folder",
+            os.path.join(
+                dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
+            ),
+            "--save_folder",
+            self.prepared_dataset_dir,
+        ]
+        if self.padding:
+            cmd.append("--padding")
+        subprocess.check_call(cmd)
+
 
     def run(self):
         if not self.prepared_dataset_dir:
@@ -68,6 +68,7 @@ methods = [
     Method("ACMP", "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
     Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
     Method("HPM", "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
+    Method("APD", "APD-MVS/build/APD", "APD/APD_model.ply", padding=True),
     # runs into segfault in CUDA
     # Method("HPM++", "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "doesn't exists"),
 ]
@@ -238,7 +239,7 @@ def main():
         if args.width:
             dataset_dir += f"_{args.width}"
         for method in selected_methods:
-            method.prepare(dataset_dir)
+            method.prepare(dataset_dir, dataset)
 
             t0 = time.time()
             method.run()

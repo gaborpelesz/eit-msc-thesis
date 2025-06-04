@@ -380,22 +380,6 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     print("Remap IDs...")
     images = [images[image_id] for image_id in sorted(images.keys())]
 
-    # intrinsic
-    print("start intrinsic...")
-    intrinsic = {}
-    for camera_id, cam in cameras.items():
-        params_dict = {key: value for key, value in zip(distortion_param_type[cam.model], cam.params)}
-        if 'f' in distortion_param_type[cam.model]:
-            params_dict['fx'] = params_dict['f']
-            params_dict['fy'] = params_dict['f']
-        i = np.array([
-            [params_dict['fx'], 0, params_dict['cx']],
-            [0, params_dict['fy'], params_dict['cy']],
-            [0, 0, 1]
-        ])
-        intrinsic[camera_id] = i
-    print('intrinsic finished!')
-
     # extrinsic
     print("start extrinsic...")
     t0 = time.perf_counter()
@@ -417,7 +401,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
 
     
     # Remap points3D_ids to array indices for convenient and fast score calc
-    print(f"Start Point3D index remap.")
+    print("Start Point3D index remap.")
     t0 = time.perf_counter()
     points3d_id_to_idx_LUT = np.zeros(max(points3d.keys())+1, np.int32)
     points3d_xyz = []
@@ -518,6 +502,27 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     t1 = time.perf_counter()
     print(f"Finished depth_ranges. {(t1-t0):.3f} sec")
 
+    # intrinsic
+    print("start intrinsic...")
+    intrinsic = {}
+    max_width = max([cam.width for cam in cameras.values()])
+    max_height = max([cam.height for cam in cameras.values()])
+    padding_width = padding_height = 0
+    for camera_id, cam in cameras.items():
+        params_dict = {key: value for key, value in zip(distortion_param_type[cam.model], cam.params)}
+        if args.padding:
+            padding_width = max_width - cam.width
+            padding_height = max_height - cam.height
+        if 'f' in distortion_param_type[cam.model]:
+            params_dict['fx'] = params_dict['f']
+            params_dict['fy'] = params_dict['f']
+        intrinsic[camera_id] = np.array([
+            [params_dict['fx'], 0, params_dict['cx'] + padding_width/2],
+            [0, params_dict['fy'], params_dict['cy'] + padding_height/2],
+            [0, 0, 1]
+        ])
+    print('intrinsic finished!')
+
     # write
     print("Start writing .txt files.")
     t0 = time.perf_counter()
@@ -552,11 +557,41 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     t0 = time.perf_counter()
     image_dir = os.path.join(args.dense_folder, 'images')
 
+    # TODO:
+    # a better approach to padding is to use the cameras.txt instead of reading all the images
+    # however, I could also patch the APD-MVS to support different sized images.
+    #
+    # FYI, the scale factor is already applied in the cameras.txt file, so we don't need to port that from APD-MVS.
+
     def copy_to_jpg(i):
         image = images[i]
         img_path = os.path.join(image_dir, image.name)
         out_path = os.path.join(save_images_dir, '%08d.jpg' % i)
-        if not os.path.splitext(img_path)[1].lower() in (".jpg", ".jpeg"):
+        if args.padding:
+            im = cv2.imread(img_path)
+            padding_width = max_width - im.shape[1]
+            padding_height = max_height - im.shape[0]
+
+            pw_odd = (padding_width % 2 == 1)
+            ph_odd = (padding_height % 2 == 1)
+            # compensate for half pixel shift
+            im = cv2.resize(im, (im.shape[1] + pw_odd, im.shape[0] + ph_odd))
+            padding_width -= pw_odd
+            padding_height -= ph_odd
+            # compensate for equal padding on each side
+            im = np.pad(
+                im,
+                [
+                    (padding_height // 2, padding_width // 2),
+                    (
+                        padding_height - padding_height // 2,
+                        padding_width - padding_width // 2,
+                    ),
+                    (0, 0)
+                ],
+            )
+            cv2.imwrite(out_path, im)
+        elif os.path.splitext(img_path)[1].lower() not in (".jpg", ".jpeg"):
             cv2.imwrite(out_path, cv2.imread(img_path))
         else:
             shutil.copyfile(img_path, out_path)
@@ -583,7 +618,12 @@ if __name__ == '__main__':
     parser.add_argument('--save_folder', required=True, type=str)
     parser.add_argument('--max_d', type=int, default=192)
     parser.add_argument('--interval_scale', type=float, default=1)
-    parser.add_argument('--single-thread', type=bool, help="Turns off multiprocessing and multithreading.")
+    parser.add_argument('--single-thread', action="store_true", help="Turns off multiprocessing and multithreading.")
+    parser.add_argument(
+        "--padding",
+        action="store_true",
+        help="Resize all images and cameras to the camera with the maximum size.",
+    )
     args = parser.parse_args()
 
     os.makedirs(os.path.join(args.save_folder), exist_ok=True)
