@@ -43,7 +43,7 @@ class Method:
         subprocess.check_call(cmd)
 
 
-    def run(self):
+    def run(self) -> bool:
         if not self.prepared_dataset_dir:
             raise ValueError("Dataset not prepared")
         cmd = [
@@ -54,7 +54,8 @@ class Method:
             subprocess.check_call(cmd)
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] Running cmd: {' '.join(cmd)}", file=sys.stderr)
-            exit(1)
+            return False
+        return True
 
     def get_reconstructed_ply_path(self):
         if not self.prepared_dataset_dir:
@@ -234,6 +235,7 @@ def main():
 
     selected_methods = [m for m in methods if m.name in args.methods]
 
+    failed_methods = []
     for dataset in args.datasets:
         dataset_dir = os.path.join(args.output, "datasets", dataset)
         if args.width:
@@ -242,7 +244,9 @@ def main():
             method.prepare(dataset_dir, dataset)
 
             t0 = time.time()
-            method.run()
+            if not method.run():
+                failed_methods.append((dataset, method.name))
+                continue
             method_time = time.time() - t0
             print(f"Method {method.name} took {method_time} seconds")
 
@@ -283,6 +287,13 @@ def main():
 
             with open(log_file, "a") as f:
                 f.write(str(result))
+
+    if failed_methods:
+        print("=" * 50)
+        print("Failed methods:")
+        for m in failed_methods:
+            print(f" - {m[0]} | {m[1]}")
+        print("=" * 50)
 
 
 if __name__ == "__main__":
