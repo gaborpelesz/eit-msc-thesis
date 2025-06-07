@@ -70,8 +70,9 @@ methods = [
     Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
     Method("HPM", "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
     Method("APD", "APD-MVS/build/APD", "APD/APD_model.ply", padding=True),
-    # runs into segfault in CUDA
-    # Method("HPM++", "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "doesn't exists"),
+    # can run into segfault in CUDA because of memory leak, but possible to run with lower scale
+    Method("HPM++", "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "HPM_MVS_plusplus/HPM_MVS_plusplus.ply"),
+    Method("MP", "MP-MVS/build/MPMVS", "MP_MVS/MPMVS_model.ply"),
 ]
 
 
