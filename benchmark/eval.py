@@ -62,6 +62,36 @@ class Method:
             raise ValueError("Dataset not prepared")
         return os.path.join(self.prepared_dataset_dir, self.outply_path)
 
+class CumvsMethod(Method):
+    def __init__(self, name: str, exe: str, outply_path: str, padding: bool = False):
+        super().__init__(name, exe, outply_path, padding)
+
+    def prepare(self, dataset_dir: str, dataset_name):
+        self.prepared_dataset_dir = dataset_dir + "_" + self.name
+        app_initialize_ETH3D = os.path.join(os.path.dirname(os.path.abspath(self.exe)), "app_initialize_ETH3D")
+        subprocess.check_call([
+            app_initialize_ETH3D,
+            os.path.join(
+                dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
+            ),
+            f"--output-directory={self.prepared_dataset_dir}"
+        ])
+
+    def run(self) -> bool:
+        if not self.prepared_dataset_dir:
+            raise ValueError("Dataset not prepared")
+        cmd = [
+            self.exe,
+            self.prepared_dataset_dir,
+            f"--output-directory={self.prepared_dataset_dir}/CUMVS"
+        ]
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Running cmd: {' '.join(cmd)}", file=sys.stderr)
+            return False
+        return True
+
 
 methods = [
     Method("ACMH", "ACMH/build/ACMH", "ACMH/ACMH_model.ply"),
@@ -69,10 +99,11 @@ methods = [
     Method("ACMP", "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
     Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
     Method("HPM", "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
-    Method("APD", "APD-MVS/build/APD", "APD/APD_model.ply", padding=True),
+    Method("APD", "APD-MVS/build/APD", "APD/APD.ply", padding=True),
     # can run into segfault in CUDA because of memory leak, but possible to run with lower scale
     Method("HPM++", "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "HPM_MVS_plusplus/HPM_MVS_plusplus.ply"),
     Method("MP", "MP-MVS/build/MPMVS", "MP_MVS/MPMVS_model.ply"),
+    CumvsMethod("CUMVS", "cuda-multi-view-stereo/build/samples/app_patch_match_mvs", "CUMVS/point_cloud_dense.ply"),
 ]
 
 
@@ -217,7 +248,7 @@ def main():
 
     tolerances = [float(x) for x in args.tolerances.split(",")]
 
-    # 1. download datasets
+    # 1. download and prepare all requested datasets
     prepare_datasets(args.datasets, os.path.join(args.output, "datasets"), args.width)
 
     log_file = f"{args.output}/evaluation_results.log"
@@ -252,23 +283,29 @@ def main():
             print(f"Method {method.name} took {method_time} seconds")
 
             print("Running evaluation")
-            res = subprocess.run(
-                [
-                    "eth3d/multi-view-evaluation/build/ETH3DMultiViewEvaluation",
-                    "--reconstruction_ply_path",
-                    method.get_reconstructed_ply_path(),
-                    "--ground_truth_mlp_path",
-                    os.path.join(
-                        dataset_dir,
-                        f"{dataset}_dslr_scan_eval/{dataset}/dslr_scan_eval/scan_alignment.mlp",
-                    ),
-                    "--tolerances",
-                    args.tolerances,
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            cmd = [
+                "eth3d/multi-view-evaluation/build/ETH3DMultiViewEvaluation",
+                "--reconstruction_ply_path",
+                method.get_reconstructed_ply_path(),
+                "--ground_truth_mlp_path",
+                os.path.join(
+                    dataset_dir,
+                    f"{dataset}_dslr_scan_eval/{dataset}/dslr_scan_eval/scan_alignment.mlp",
+                ),
+                "--tolerances",
+                args.tolerances,
+            ]
+            try:
+                res = subprocess.run(
+                    cmd,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"[ERROR] Running cmd failed: {' '.join(cmd)}", file=sys.stderr)
+                print(e.stderr)
+                raise
 
             print(res.stdout)
 

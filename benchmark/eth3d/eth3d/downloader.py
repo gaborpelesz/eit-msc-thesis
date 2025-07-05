@@ -63,7 +63,7 @@ def download_file(url, local_filename):
             path = pathlib.Path(local_filename).expanduser().resolve()
             path.parent.mkdir(parents=True, exist_ok=True)
 
-            desc = "(Unknown total file size)" if file_size == 0 else ""
+            desc = "Downloading (Unknown total file size)" if file_size == 0 else "Downloading"
             r.raw.read = functools.partial(
                 r.raw.read, decode_content=True
             )  # Decompress if needed
@@ -123,4 +123,5 @@ def download_dataset(
         print("Downloading depth archive...")
         download_extract_archive(depth_url, local_dataset_path)
     if with_original_jpg:
+        print("Downloading original jpg archive...")
         download_extract_archive(jpg_url, local_dataset_path)

@@ -16,3 +16,6 @@
 [submodule "ACMH"]
 	path = benchmark/ACMH
 	url = https://github.com/gaborpelesz/ACMH.git
+[submodule "cuda-multi-view-stereo"]
+	path = benchmark/cuda-multi-view-stereo
+	url = https://github.com/fixstars/cuda-multi-view-stereo.git
