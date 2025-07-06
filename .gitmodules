@@ -22,3 +22,6 @@
 [submodule "ACMP"]
 	path = benchmark/ACMP
 	url = https://github.com/gaborpelesz/ACMP.git
+[submodule "ACMM"]
+	path = benchmark/ACMM
+	url = https://github.com/gaborpelesz/ACMM.git
