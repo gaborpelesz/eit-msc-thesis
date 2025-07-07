@@ -10,6 +10,8 @@ RUN apt update && apt install -y --no-install-recommends \
     cmake \
     clang-18 \
     libomp-18-dev \
+    # PCL is required for HPM-MVS only
+    libpcl-dev \
     ninja-build \
     python3-dev \
     python3-venv \
@@ -61,7 +63,7 @@ RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build \
  && cmake --install build
 
-# WORKDIR /sota
+WORKDIR /sota
 
 COPY cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
 RUN cd /sota/cuda-multi-view-stereo \
@@ -117,12 +119,22 @@ RUN cd /sota/ACMMP \
 COPY APD-MVS/ /sota/APD-MVS/
 RUN cd /sota/APD-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
+      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-# COPY HPM-MVS/ /sota/HPM-MVS/
-# RUN cd /sota/HPM-MVS/HPM-MVS \
-#     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
-#     && cmake --build build
+COPY HPM-MVS/ /sota/HPM-MVS/
+RUN cd /sota/HPM-MVS/HPM-MVS \
+    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
+      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+    && cmake --build build
 
 COPY HPM-MVS_plusplus/ /sota/HPM-MVS_plusplus/
 RUN cd /sota/HPM-MVS_plusplus \
