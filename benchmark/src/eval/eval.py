@@ -4,9 +4,9 @@ import sys
 import os
 import time
 import shutil
+from pathlib import Path
 
 try:
-    sys.path.append(os.path.join(os.path.dirname(__file__), "eth3d"))
     from eth3d import prepare_datasets, ETH3D_DATASETS_TRAINING, ETH3D_DATASETS_TEST  # type: ignore
 except ImportError:
     print("Error: eth3d module not found. Please ensure it is installed correctly.")
@@ -29,8 +29,7 @@ class Method:
     def prepare(self, dataset_dir: str, dataset_name):
         self.prepared_dataset_dir = dataset_dir.rstrip("/") + "_mvsnet"
         cmd = [
-            sys.executable,
-            "colmap2mvsnet_acm_perf.py",
+            "colmap2mvsnet_acm_perf",
             "--dense_folder",
             os.path.join(
                 dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
@@ -87,23 +86,24 @@ class CumvsMethod(Method):
         ]
         try:
             subprocess.check_call(cmd)
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             print(f"[ERROR] Running cmd: {' '.join(cmd)}", file=sys.stderr)
             return False
         return True
 
+mvs_method_root = Path(os.getenv("SOTA_MVS_METHOD_ROOT", Path(__file__).parent.parent.parent))
 
 methods = [
-    Method("ACMH", "ACMH/build/ACMH", "ACMH/ACMH_model.ply"),
-    Method("ACMM", "ACMM/build/ACMM", "ACMM/ACMM_model.ply"),
-    Method("ACMP", "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
-    Method("ACMMP", "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
-    Method("HPM", "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
-    Method("APD", "APD-MVS/build/APD", "APD/APD.ply", padding=True),
+    Method("ACMH", mvs_method_root / "ACMH/build/ACMH", "ACMH/ACMH_model.ply"),
+    Method("ACMM", mvs_method_root / "ACMM/build/ACMM", "ACMM/ACMM_model.ply"),
+    Method("ACMP", mvs_method_root / "ACMP/build/ACMP", "ACMP/ACMP_model.ply"),
+    Method("ACMMP", mvs_method_root / "ACMMP/build/ACMMP", "ACMMP/ACMMP_model.ply"),
+    Method("HPM", mvs_method_root / "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
+    Method("APD", mvs_method_root / "APD-MVS/build/APD", "APD/APD.ply", padding=True),
     # can run into segfault in CUDA because of memory leak, but possible to run with lower scale
-    Method("HPM++", "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "HPM_MVS_plusplus/HPM_MVS_plusplus.ply"),
-    Method("MP", "MP-MVS/build/MPMVS", "MP_MVS/MPMVS_model.ply"),
-    CumvsMethod("CUMVS", "cuda-multi-view-stereo/build/samples/app_patch_match_mvs", "CUMVS/point_cloud_dense.ply"),
+    Method("HPM++", mvs_method_root / "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "HPM_MVS_plusplus/HPM_MVS_plusplus.ply"),
+    Method("MP", mvs_method_root / "MP-MVS/build/MPMVS", "MP_MVS/MPMVS_model.ply"),
+    CumvsMethod("CUMVS", mvs_method_root / "cuda-multi-view-stereo/build/samples/app_patch_match_mvs", "CUMVS/point_cloud_dense.ply"),
 ]
 
 
@@ -200,9 +200,8 @@ class EvaluationResult:
 def parse_stdout_into_eval_result(
     stdout: str,
 ) -> tuple[list[float], list[float], list[float]]:
-    find_and_parse_to_vals = lambda line, s: [
-        float(x) for x in line.lstrip(s).strip().split(" ")
-    ]
+    def find_and_parse_to_vals(line, s):
+        return [float(x) for x in line.lstrip(s).strip().split(" ")]
     accuracies = None
     completenesses = None
     f1_scores = None
@@ -284,7 +283,7 @@ def main():
 
             print("Running evaluation")
             cmd = [
-                "eth3d/multi-view-evaluation/build/ETH3DMultiViewEvaluation",
+                "ETH3DMultiViewEvaluation",
                 "--reconstruction_ply_path",
                 method.get_reconstructed_ply_path(),
                 "--ground_truth_mlp_path",

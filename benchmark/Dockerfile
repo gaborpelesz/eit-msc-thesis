@@ -21,20 +21,19 @@ RUN apt update && apt install -y --no-install-recommends \
     unzip \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
+FROM base AS deps
+
 WORKDIR /deps
 
 WORKDIR /deps/eigen
 RUN git clone https://gitlab.com/libeigen/eigen.git .
 RUN git checkout 3.4.0
-RUN cmake -Bbuild -GNinja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/deps/install \
+  -DCMAKE_C_COMPILER=clang-18 \
+  -DCMAKE_CXX_COMPILER=clang++-18 \
+  -DBUILD_TESTING=OFF
 RUN cmake --install build
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-RUN uv venv
-
-COPY eth3d/ /sota/eth3d
-RUN uv pip install -r /sota/eth3d/requirements.txt
-# TODO: opencv needs VTK
 
 WORKDIR /deps/opencv_contrib
 RUN git clone https://github.com/opencv/opencv_contrib.git . \
@@ -43,6 +42,7 @@ WORKDIR /deps/opencv
 RUN git clone https://github.com/opencv/opencv.git . \
  && git checkout 4.12.0
 RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+   -DCMAKE_INSTALL_PREFIX=/deps/install \
    -DCMAKE_C_COMPILER=clang-18 \
    -DCMAKE_CXX_COMPILER=clang++-18 \
    -DOPENCV_EXTRA_MODULES_PATH=/deps/opencv_contrib/modules \
@@ -63,7 +63,13 @@ RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build \
  && cmake --install build
 
-WORKDIR /sota
+FROM base AS eval
+
+WORKDIR /
+
+COPY --link --from=deps /deps/install /deps/install
+ENV Eigen3_DIR=/deps/install/share/eigen3/cmake/
+ENV OpenCV_DIR=/deps/install/lib/cmake/opencv4/
 
 COPY cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
 RUN cd /sota/cuda-multi-view-stereo \
@@ -165,3 +171,31 @@ RUN cd /sota/cuda-multi-view-stereo \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /multi-view-evaluation
+ADD eth3d/multi-view-evaluation /multi-view-evaluation
+RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+    && cmake --build build \
+    && cp build/ETH3DMultiViewEvaluation /usr/local/bin/ETH3DMultiViewEvaluation
+
+WORKDIR /sota
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=eth3d,target=eth3d \
+    uv sync --locked --no-install-project
+
+ADD ./ /sota
+
+WORKDIR /sota
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
+
+ENV SOTA_MVS_METHOD_ROOT /sota
+
+ENTRYPOINT [ "bash" ]

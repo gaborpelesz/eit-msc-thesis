@@ -8,6 +8,7 @@ build/
 .DS_Store
 
 .mypy_cache/
-__pycache__
-Pipfile
-Pipfile.lock
+__pycache__/
+.python-version
+
+test_eval/

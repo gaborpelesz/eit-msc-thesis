@@ -368,7 +368,7 @@ def calc_score_old_chunked(queue_chunk, *args, **kargs):
     return [calc_score(item, *args, **kargs) for item in queue_chunk]
 
 
-def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interval_scale=1, max_d=192, multiprocessing=True):
+def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cams_dir, padding, interval_scale=1, max_d=192, multiprocessing=True):
     t0 = time.perf_counter()
     print("Reading model...")
     sparse_dir = os.path.join(dense_folder, 'dslr_calibration_undistorted')
@@ -510,7 +510,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     padding_width = padding_height = 0
     for camera_id, cam in cameras.items():
         params_dict = {key: value for key, value in zip(distortion_param_type[cam.model], cam.params)}
-        if args.padding:
+        if padding:
             padding_width = max_width - cam.width
             padding_height = max_height - cam.height
         if 'f' in distortion_param_type[cam.model]:
@@ -541,7 +541,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
             f.write('\n%f %f %f %f\n' % (depth_ranges[i][0], depth_ranges[i][1], depth_ranges[i][2], depth_ranges[i][3]))
             # write image name
             f.write('%s\n' % images[i].name)
-    with open(os.path.join(args.save_folder, 'pair.txt'), 'w') as f:
+    with open(os.path.join(save_folder, 'pair.txt'), 'w') as f:
         f.write('%d\n' % len(images))
         for i, sorted_score in enumerate(view_sel):
             f.write('%d\n%d ' % (i, len(sorted_score)))
@@ -555,7 +555,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     #convert to jpg
     print("Start copying images...")
     t0 = time.perf_counter()
-    image_dir = os.path.join(args.dense_folder, 'images')
+    image_dir = os.path.join(dense_folder, 'images')
 
     # TODO:
     # a better approach to padding is to use the cameras.txt instead of reading all the images
@@ -567,7 +567,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
         image = images[i]
         img_path = os.path.join(image_dir, image.name)
         out_path = os.path.join(save_images_dir, '%08d.jpg' % i)
-        if args.padding:
+        if padding:
             im = cv2.imread(img_path)
             padding_width = max_width - im.shape[1]
             padding_height = max_height - im.shape[0]
@@ -611,7 +611,7 @@ def processing_single_scene(dense_folder, save_images_dir, save_cams_dir, interv
     print(f"Copying images finished: {(t1-t0):.3f} sec")
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Convert colmap camera')
 
     parser.add_argument('--dense_folder', required=True, type=str)
@@ -640,4 +640,8 @@ if __name__ == '__main__':
         shutil.rmtree(save_cams_dir)
     os.makedirs(save_cams_dir)
 
-    processing_single_scene(args.dense_folder, save_images_dir, save_cams_dir, args.interval_scale, args.max_d, (not args.single_thread))
+    processing_single_scene(args.save_folder, args.dense_folder, save_images_dir, save_cams_dir, args.padding, args.interval_scale, args.max_d, (not args.single_thread))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,8 +1,15 @@
 # ETH3D dataset
 
-Install dependencies:
+## Install
+
+Using uv
 ```sh
-python3 -m pip install -r requirements.txt
+uv sync
+```
+
+Or dependencies:
+```sh
+uv pip install .
 ```
 
 Usage:

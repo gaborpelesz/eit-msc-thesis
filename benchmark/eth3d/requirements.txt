@@ -1,4 +1,0 @@
-py7zr
-opencv-python
-requests
-tqdm
