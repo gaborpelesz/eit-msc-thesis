@@ -41,7 +41,6 @@ class Method:
             cmd.append("--padding")
         subprocess.check_call(cmd)
 
-
     def run(self) -> bool:
         if not self.prepared_dataset_dir:
             raise ValueError("Dataset not prepared")
@@ -61,20 +60,25 @@ class Method:
             raise ValueError("Dataset not prepared")
         return os.path.join(self.prepared_dataset_dir, self.outply_path)
 
+
 class CumvsMethod(Method):
     def __init__(self, name: str, exe: str, outply_path: str, padding: bool = False):
         super().__init__(name, exe, outply_path, padding)
 
     def prepare(self, dataset_dir: str, dataset_name):
         self.prepared_dataset_dir = dataset_dir + "_" + self.name
-        app_initialize_ETH3D = os.path.join(os.path.dirname(os.path.abspath(self.exe)), "app_initialize_ETH3D")
-        subprocess.check_call([
-            app_initialize_ETH3D,
-            os.path.join(
-                dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
-            ),
-            f"--output-directory={self.prepared_dataset_dir}"
-        ])
+        app_initialize_ETH3D = os.path.join(
+            os.path.dirname(os.path.abspath(self.exe)), "app_initialize_ETH3D"
+        )
+        subprocess.check_call(
+            [
+                app_initialize_ETH3D,
+                os.path.join(
+                    dataset_dir, f"{dataset_name}_dslr_undistorted/{dataset_name}"
+                ),
+                f"--output-directory={self.prepared_dataset_dir}",
+            ]
+        )
 
     def run(self) -> bool:
         if not self.prepared_dataset_dir:
@@ -82,7 +86,7 @@ class CumvsMethod(Method):
         cmd = [
             self.exe,
             self.prepared_dataset_dir,
-            f"--output-directory={self.prepared_dataset_dir}/CUMVS"
+            f"--output-directory={self.prepared_dataset_dir}/CUMVS",
         ]
         try:
             subprocess.check_call(cmd)
@@ -91,7 +95,10 @@ class CumvsMethod(Method):
             return False
         return True
 
-mvs_method_root = Path(os.getenv("SOTA_MVS_METHOD_ROOT", Path(__file__).parent.parent.parent))
+
+mvs_method_root = Path(
+    os.getenv("SOTA_MVS_METHOD_ROOT", Path(__file__).parent.parent.parent)
+)
 
 methods = [
     Method("ACMH", mvs_method_root / "ACMH/build/ACMH", "ACMH/ACMH_model.ply"),
@@ -101,9 +108,17 @@ methods = [
     Method("HPM", mvs_method_root / "HPM-MVS/HPM-MVS/build/HPM", "HPM/HPM_model.ply"),
     Method("APD", mvs_method_root / "APD-MVS/build/APD", "APD/APD.ply", padding=True),
     # can run into segfault in CUDA because of memory leak, but possible to run with lower scale
-    Method("HPM++", mvs_method_root / "HPM-MVS_plusplus/build/HPM-MVS_plusplus", "HPM_MVS_plusplus/HPM_MVS_plusplus.ply"),
+    Method(
+        "HPM++",
+        mvs_method_root / "HPM-MVS_plusplus/build/HPM-MVS_plusplus",
+        "HPM_MVS_plusplus/HPM_MVS_plusplus.ply",
+    ),
     Method("MP", mvs_method_root / "MP-MVS/build/MPMVS", "MP_MVS/MPMVS_model.ply"),
-    CumvsMethod("CUMVS", mvs_method_root / "cuda-multi-view-stereo/build/samples/app_patch_match_mvs", "CUMVS/point_cloud_dense.ply"),
+    CumvsMethod(
+        "CUMVS",
+        mvs_method_root / "cuda-multi-view-stereo/build/samples/app_patch_match_mvs",
+        "CUMVS/point_cloud_dense.ply",
+    ),
 ]
 
 
@@ -129,20 +144,20 @@ class EvaluationResult:
 
     def __str__(self):
         output = [
-            f"\n{'='*50}",
+            f"\n{'=' * 50}",
             f"Dataset: {self.dataset}",
             f"Method: {self.method}",
             f"Runtime: {self.time:.2f} seconds",
-            f"{'='*50}",
+            f"{'=' * 50}",
             "\nMetrics:",
             f"{'Tolerance':>10} | {'Accuracy':>10} | {'Completeness':>12} | {'F1 Score':>10}",
-            f"{'-'*10} | {'-'*10} | {'-'*12} | {'-'*10}",
+            f"{'-' * 10} | {'-' * 10} | {'-' * 12} | {'-' * 10}",
         ]
         for i in range(len(self.accuracies)):
             output.append(
                 f"{self.tolerances[i]:>10.3f} | {self.accuracies[i]:>10.3f} | {self.completenesses[i]:>12.3f} | {self.f1_scores[i]:>10.3f}"
             )
-        output.append(f"{'='*50}\n")
+        output.append(f"{'=' * 50}\n")
         return "\n".join(output)
 
     def write_to_sqlite(self, db_path: str):
@@ -202,6 +217,7 @@ def parse_stdout_into_eval_result(
 ) -> tuple[list[float], list[float], list[float]]:
     def find_and_parse_to_vals(line, s):
         return [float(x) for x in line.lstrip(s).strip().split(" ")]
+
     accuracies = None
     completenesses = None
     f1_scores = None
