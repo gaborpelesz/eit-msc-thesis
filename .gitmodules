@@ -25,3 +25,6 @@
 [submodule "ACMM"]
 	path = benchmark/ACMM
 	url = https://github.com/gaborpelesz/ACMM.git
+[submodule "MP-MVS"]
+	path = benchmark/MP-MVS
+	url = https://github.com/gaborpelesz/MP-MVS.git
