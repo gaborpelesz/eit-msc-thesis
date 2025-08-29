@@ -27,7 +27,7 @@ class Method:
         assert os.path.exists(self.exe), f"Executable {self.exe} does not exist"
 
     def prepare(self, dataset_dir: str, dataset_name):
-        self.prepared_dataset_dir = dataset_dir.rstrip("/") + "_mvsnet"
+        self.prepared_dataset_dir = dataset_dir.rstrip("/") + f"_{self.name}"
         cmd = [
             "colmap2mvsnet_acm_perf",
             "--dense_folder",
@@ -66,7 +66,7 @@ class CumvsMethod(Method):
         super().__init__(name, exe, outply_path, padding)
 
     def prepare(self, dataset_dir: str, dataset_name):
-        self.prepared_dataset_dir = dataset_dir + "_" + self.name
+        self.prepared_dataset_dir = dataset_dir.rstrip("/") + f"_{self.name}"
         app_initialize_ETH3D = os.path.join(
             os.path.dirname(os.path.abspath(self.exe)), "app_initialize_ETH3D"
         )
