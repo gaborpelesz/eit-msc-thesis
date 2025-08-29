@@ -51,7 +51,7 @@ class Method:
         try:
             subprocess.check_call(cmd)
         except subprocess.CalledProcessError as e:
-            print(f"[ERROR] Running cmd: {' '.join(cmd)}", file=sys.stderr)
+            print(f"[ERROR] Running cmd: {' '.join([str(p) for p in cmd])}", file=sys.stderr)
             return False
         return True
 
