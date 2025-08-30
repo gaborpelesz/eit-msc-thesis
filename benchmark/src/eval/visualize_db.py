@@ -1,7 +1,7 @@
 """
 Run like:
 
-streamlit run visualize_db.py -- --db evaluation/evaluation.db --field dataset
+streamlit run visualize_db.py -- --db evaluation/evaluation.db --fields dataset tolerance
 
 """
 
@@ -15,7 +15,13 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--db", type=str, required=True)
 parser.add_argument("--table", type=str, default="evaluation_results")
-parser.add_argument("--field", type=str, default="dataset")
+parser.add_argument(
+    "--fields",
+    type=str,
+    nargs="+",
+    default=["dataset"],
+    help="List of fields to filter by (e.g., --fields dataset tolerance)",
+)
 
 args = parser.parse_args()
 
@@ -26,18 +32,33 @@ table_name = args.table
 # Load the full table into a DataFrame
 df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
 
-# Check if 'field' column exists
-if args.field not in df.columns:
-    st.error(f"'{args.field}' column not found in table '{table_name}'")
+# Check if all specified fields exist
+missing_fields = [field for field in args.fields if field not in df.columns]
+if missing_fields:
+    st.error(
+        f"Column(s) {missing_fields} not found in table '{table_name}'"
+    )
 else:
-    # Get unique field values
-    field_values = df[args.field].dropna().unique()
-    field_selected = st.selectbox("Choose a value", sorted(field_values))
+    selected_values = {}
+    for field in args.fields:
+        field_values = df[field].dropna().unique()
+        # Use selectbox for each field
+        selected = st.selectbox(
+            f"Choose a value for '{field}'", sorted(field_values), key=field
+        )
+        selected_values[field] = selected
 
-    # Filter by selected dataset
-    filtered_df = df[df[args.field] == field_selected]
+    # Filter DataFrame by all selected field values
+    filtered_df = df.copy()
+    for field, value in selected_values.items():
+        filtered_df = filtered_df[filtered_df[field] == value]
 
-    st.subheader(f"Rows for {args.field}: {field_selected}")
+    st.subheader(
+        "Rows for: "
+        + ", ".join(
+            f"{field}: {selected_values[field]}" for field in args.fields
+        )
+    )
     st.dataframe(filtered_df)
 
     # Optional: display basic statistics if numeric columns exist

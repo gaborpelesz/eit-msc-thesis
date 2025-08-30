@@ -12,3 +12,5 @@ __pycache__/
 .python-version
 
 test_eval/
+
+/evaluations/

@@ -2,6 +2,8 @@
 **/.clangd/
 **/.cache/
 
+/evaluations/
+
 **/.DS_Store
 
 **/.git/
