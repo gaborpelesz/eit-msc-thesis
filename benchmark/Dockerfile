@@ -71,7 +71,7 @@ COPY --link --from=deps /deps/install /deps/install
 ENV Eigen3_DIR=/deps/install/share/eigen3/cmake/
 ENV OpenCV_DIR=/deps/install/lib/cmake/opencv4/
 
-COPY cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
+COPY methods/cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
 RUN cd /sota/cuda-multi-view-stereo \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -82,7 +82,7 @@ RUN cd /sota/cuda-multi-view-stereo \
     && cmake --build build
 
 
-COPY ACMH/ /sota/ACMH
+COPY methods/ACMH/ /sota/ACMH
 RUN cd /sota/ACMH \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -92,7 +92,7 @@ RUN cd /sota/ACMH \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY ACMM/ /sota/ACMM/
+COPY methods/ACMM/ /sota/ACMM/
 RUN cd /sota/ACMM \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -102,7 +102,7 @@ RUN cd /sota/ACMM \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY ACMP/ /sota/ACMP/
+COPY methods/ACMP/ /sota/ACMP/
 RUN cd /sota/ACMP \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -112,7 +112,7 @@ RUN cd /sota/ACMP \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY ACMMP/ /sota/ACMMP/
+COPY methods/ACMMP/ /sota/ACMMP/
 RUN cd /sota/ACMMP \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -122,7 +122,7 @@ RUN cd /sota/ACMMP \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY APD-MVS/ /sota/APD-MVS/
+COPY methods/APD-MVS/ /sota/APD-MVS/
 RUN cd /sota/APD-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -132,7 +132,7 @@ RUN cd /sota/APD-MVS \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY HPM-MVS/ /sota/HPM-MVS/
+COPY methods/HPM-MVS/ /sota/HPM-MVS/
 RUN cd /sota/HPM-MVS/HPM-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -142,7 +142,7 @@ RUN cd /sota/HPM-MVS/HPM-MVS \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY HPM-MVS_plusplus/ /sota/HPM-MVS_plusplus/
+COPY methods/HPM-MVS_plusplus/ /sota/HPM-MVS_plusplus/
 RUN cd /sota/HPM-MVS_plusplus \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -152,7 +152,7 @@ RUN cd /sota/HPM-MVS_plusplus \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY MP-MVS/ /sota/MP-MVS/
+COPY methods/MP-MVS/ /sota/MP-MVS/
 RUN cd /sota/MP-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
@@ -162,7 +162,17 @@ RUN cd /sota/MP-MVS \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
+COPY methods/DPE-MVS/DPE-MVS /sota/DPE-MVS/
+RUN cd /sota/DPE-MVS \
+    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
+      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+    && cmake --build build
+
+COPY methods/cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
 RUN cd /sota/cuda-multi-view-stereo \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
