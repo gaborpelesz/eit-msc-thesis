@@ -119,7 +119,7 @@ methods = [
         mvs_method_root / "cuda-multi-view-stereo/build/samples/app_patch_match_mvs",
         "CUMVS/point_cloud_dense.ply",
     ),
-    Method("DPE", mvs_method_root / "DPE-MVS/build/DPE", "DPE/DPE.ply"),
+    Method("DPE", mvs_method_root / "DPE-MVS/build/DPE", "DPE/DPE.ply", padding=True),
 ]
 
 
