@@ -1,0 +1,64 @@
+\chapter{Benchmarks}
+\label{ch:benchmarks}
+
+There are many influential benchmarks in the field of 3D reconstruction all of them serving a different purpose. The Middlebury dataset \cite{conf/dagm/ScharsteinHKKNWW14} has been the foundational work in creating a structured framework for evaulating two-view stereo algorithm.
+- DTU MVS dataset \cite{jensen2014large}
+    - for robotics
+    - no leaderboard to find MVS algorithms and their performance
+- ETH3D \cite{schoeps2017cvpr}
+    - A dataset with natural, large-scale scenes, high-resolution images, and provided image poses to directly evaluate Multi-View stereo algorithms for pointcloud reconstruction.
+    - good leaderboard, showing many SOTA MVS methods
+- Tanks and Temples \cite{Knapitsch2017}
+    - focused on full 3D pipeline evaluation, i.e., requires you to do Sparse as well
+    - good leaderboard, showing many SOTA MVS methods
+
+...
+
+ETH3D has been selected as the evaluation dataset for this thesis because
+- it focuses directly on MVS
+- many competing algorithm choose this dataset as their primary target for benchmarking, consequently, its leaderboard has many contenders. The benchmark is active, and new algorithms are still competing \todo{maybe cite some recent algorithms that have been published this year and they are on the leaderboard}
+- convenient evaluation scripts are available
+
+
+AI SCRIPT FOLLOWS
+----
+
+\section{Introduction to Benchmarking in 3D Reconstruction}
+
+Benchmarking is a critical aspect of evaluating the performance and accuracy of algorithms in the field of 3D reconstruction. It provides a standardized framework for comparing different methods, ensuring reproducibility, and identifying strengths and weaknesses in various approaches. In this thesis, the ETH3D benchmark suite has been selected as the primary tool for the evaluation of the developed methods and algorithms. This section introduces ETH3D, outlines its relevance, and justifies its selection as the main benchmarking platform.
+
+\section{Overview of the ETH3D Benchmark}
+
+ETH3D is a widely recognized benchmark designed for the comprehensive evaluation of 3D reconstruction algorithms. Developed and maintained by the Computer Vision and Geometry Group at ETH Zurich, ETH3D provides a diverse set of high-quality datasets, ground truth data, and standardized evaluation metrics. The benchmark covers both multi-view stereo (MVS) and structure-from-motion (SfM) tasks, making it suitable for a broad range of 3D computer vision applications.
+
+The ETH3D benchmark includes indoor and outdoor scenes, captured under varying lighting conditions and with different levels of complexity. The datasets are accompanied by accurate ground truth reconstructions, which enable precise quantitative assessment of algorithmic performance. Furthermore, ETH3D supports both high-resolution and low-resolution image sets, allowing for scalability testing and evaluation under resource constraints.
+
+\section{Evaluation Metrics and Protocols}
+
+ETH3D provides a set of well-defined evaluation metrics that facilitate objective comparison between different 3D reconstruction methods. The primary metrics include:
+
+\begin{itemize}
+    \item \textbf{Accuracy:} Measures the closeness of the reconstructed 3D points to the ground truth surface.
+    \item \textbf{Completeness:} Assesses the proportion of the ground truth surface that is successfully reconstructed.
+    \item \textbf{Outlier Ratio:} Quantifies the percentage of reconstructed points that deviate significantly from the ground truth.
+    \item \textbf{Runtime and Resource Usage:} Evaluates the computational efficiency and scalability of the algorithms.
+\end{itemize}
+
+The benchmark protocol requires participants to submit their reconstructed point clouds or meshes, which are then evaluated using the provided scripts. This ensures consistency and fairness in the comparison of results.
+
+\section{Justification for Selecting ETH3D}
+
+The selection of ETH3D as the primary benchmarking tool in this thesis is motivated by several factors:
+
+\begin{itemize}
+    \item \textbf{Relevance:} ETH3D is widely adopted in the research community, making it a standard reference for 3D reconstruction performance.
+    \item \textbf{Diversity:} The benchmark offers a variety of scenes and conditions, enabling comprehensive evaluation across different scenarios.
+    \item \textbf{Robust Evaluation:} The availability of accurate ground truth and standardized metrics ensures reliable and reproducible results.
+    \item \textbf{Active Maintenance:} ETH3D is actively maintained and updated, reflecting the latest advancements and requirements in the field.
+\end{itemize}
+
+By utilizing ETH3D, this thesis ensures that the evaluation of the proposed methods is both rigorous and comparable to state-of-the-art approaches.
+
+\section{Summary}
+
+In summary, ETH3D serves as an essential tool for benchmarking in this thesis, providing a robust, diverse, and standardized platform for the evaluation of 3D reconstruction algorithms. The following sections will present the experimental results and analyses based on the ETH3D benchmark, highlighting the effectiveness and limitations of the developed methods.
