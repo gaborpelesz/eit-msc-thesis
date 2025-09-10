@@ -291,14 +291,17 @@ def main():
         for method in selected_methods:
             method.prepare(dataset_dir, dataset)
 
+            print(f"\n{'=' * 50}\nDataset: {dataset}\nMethod: {method.name}\n{'=' * 50}\n")
+
             t0 = time.time()
             if not method.run():
                 failed_methods.append((dataset, method.name))
                 continue
             method_time = time.time() - t0
-            print(f"Method {method.name} took {method_time} seconds")
 
+            print(f"Method {method.name} took {method_time} seconds")
             print("Running evaluation")
+
             cmd = [
                 "ETH3DMultiViewEvaluation",
                 "--reconstruction_ply_path",
