@@ -15,7 +15,7 @@ docker run --rm --gpus all -it sota-mvs:latest
 ## Evaluation
 
 ```bash
-eval-cli --datasets courtyard --methods ACMH --width 1300
+eval-cli --datasets courtyard --methods ACMH --width 1300 2>&1 | tee evaluation.log
 ```
 
 ## Layout
