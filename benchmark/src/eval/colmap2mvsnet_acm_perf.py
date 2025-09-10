@@ -505,20 +505,14 @@ def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cam
     # intrinsic
     print("start intrinsic...")
     intrinsic = {}
-    max_width = max([cam.width for cam in cameras.values()])
-    max_height = max([cam.height for cam in cameras.values()])
-    padding_width = padding_height = 0
     for camera_id, cam in cameras.items():
         params_dict = {key: value for key, value in zip(distortion_param_type[cam.model], cam.params)}
-        if padding:
-            padding_width = max_width - cam.width
-            padding_height = max_height - cam.height
         if 'f' in distortion_param_type[cam.model]:
             params_dict['fx'] = params_dict['f']
             params_dict['fy'] = params_dict['f']
         intrinsic[camera_id] = np.array([
-            [params_dict['fx'], 0, params_dict['cx'] + padding_width/2],
-            [0, params_dict['fy'], params_dict['cy'] + padding_height/2],
+            [params_dict['fx'], 0, params_dict['cx'] + cam.width/2],
+            [0, params_dict['fy'], params_dict['cy'] + cam.height/2],
             [0, 0, 1]
         ])
     print('intrinsic finished!')
@@ -557,11 +551,10 @@ def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cam
     t0 = time.perf_counter()
     image_dir = os.path.join(dense_folder, 'images')
 
-    # TODO:
-    # a better approach to padding is to use the cameras.txt instead of reading all the images
-    # however, I could also patch the APD-MVS to support different sized images.
-    #
-    # FYI, the scale factor is already applied in the cameras.txt file, so we don't need to port that from APD-MVS.
+    # NOTE: the scale factor is already applied in the cameras.txt file, so we don't need to port that from APD-MVS.
+
+    max_width = max([cam.width for cam in cameras.values()])
+    max_height = max([cam.height for cam in cameras.values()])
 
     def copy_to_jpg(i):
         image = images[i]
@@ -571,26 +564,8 @@ def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cam
             im = cv2.imread(img_path)
             padding_width = max_width - im.shape[1]
             padding_height = max_height - im.shape[0]
-
-            pw_odd = (padding_width % 2 == 1)
-            ph_odd = (padding_height % 2 == 1)
-            # compensate for half pixel shift
-            im = cv2.resize(im, (im.shape[1] + pw_odd, im.shape[0] + ph_odd))
-            padding_width -= pw_odd
-            padding_height -= ph_odd
-            # compensate for equal padding on each side
-            im = np.pad(
-                im,
-                [
-                    (padding_height // 2, padding_width // 2),
-                    (
-                        padding_height - padding_height // 2,
-                        padding_width - padding_width // 2,
-                    ),
-                    (0, 0)
-                ],
-            )
-            cv2.imwrite(out_path, im)
+            im_padded = np.pad(im, ((0, padding_height), (0, padding_width), (0, 0)), 'constant')
+            cv2.imwrite(out_path, im_padded)
         elif os.path.splitext(img_path)[1].lower() not in (".jpg", ".jpeg"):
             cv2.imwrite(out_path, cv2.imread(img_path))
         else:
