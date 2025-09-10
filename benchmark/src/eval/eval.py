@@ -18,6 +18,10 @@ class Method:
     exe: str
 
     def __init__(self, name: str, exe: str, outply_path: str, padding: bool = False):
+        """
+        Args:
+            padding: Pad the images so they have the same width and height.
+        """
         self.name = name
         self.exe = exe
         self.prepared_dataset_dir: str | None = None
