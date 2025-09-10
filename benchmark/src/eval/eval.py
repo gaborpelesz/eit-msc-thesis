@@ -267,10 +267,10 @@ def main():
     # 1. download and prepare all requested datasets
     prepare_datasets(args.datasets, os.path.join(args.output, "datasets"), args.width)
 
-    log_file = f"{args.output}/evaluation_results.log"
-    if os.path.exists(log_file):
-        shutil.move(log_file, f"{log_file}_{time.strftime('%Y%m%d_%H%M%S')}")
-    with open(log_file, "w") as f:
+    results_log_file = f"{args.output}/evaluation_results.txt"
+    if os.path.exists(results_log_file):
+        shutil.move(results_log_file, f"{results_log_file}_{time.strftime('%Y%m%d_%H%M%S')}")
+    with open(results_log_file, "w") as f:
         f.write(
             "Evaluation Results\n"
             f"{'-' * 50}\n"
@@ -342,7 +342,7 @@ def main():
             )
             result.write_to_sqlite(os.path.join(args.output, "evaluation.db"))
 
-            with open(log_file, "a") as f:
+            with open(results_log_file, "a") as f:
                 f.write(str(result))
 
     if failed_methods:
