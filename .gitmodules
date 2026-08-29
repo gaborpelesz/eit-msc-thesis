@@ -28,3 +28,6 @@
 [submodule "methods/DPE-MVS"]
 	path = benchmark/methods/DPE-MVS
 	url = https://github.com/gaborpelesz/DPE-MVS.git
+[submodule "methods/DVP-MVS"]
+	path = benchmark/methods/DVP-MVS
+	url = https://github.com/gaborpelesz/DVP-MVS.git
