@@ -38,11 +38,27 @@ def copy_rescale_cameras_txt(from_path, to_path, new_width):
     colmapio.write_cameras_text(cameras, to_path)
 
 
+# Quality 100 with 4:4:4 sampling (no chroma subsampling) keeps the generation
+# loss of the extra JPEG encode negligible, so resolution stays the only
+# variable that differs between scales. OpenCV warns if these are handed to a
+# non-JPEG encoder, hence the extension check.
+JPEG_WRITE_PARAMS = [
+    cv2.IMWRITE_JPEG_QUALITY,
+    100,
+    cv2.IMWRITE_JPEG_SAMPLING_FACTOR,
+    cv2.IMWRITE_JPEG_SAMPLING_FACTOR_444,
+]
+
+
 def copy_rescale_image(from_path, to_path, new_width):
     img = cv2.imread(from_path)
     height, width = img.shape[:2]
-    img = cv2.resize(img, (new_width, int(new_width / width * height)))
-    cv2.imwrite(to_path, img)
+    # INTER_AREA area-averages the source pixels, band-limiting before it
+    # decimates; INTER_LINEAR only taps 2x2 and so aliases when downscaling.
+    interpolation = cv2.INTER_AREA if new_width < width else cv2.INTER_CUBIC
+    img = cv2.resize(img, (new_width, int(new_width / width * height)), interpolation=interpolation)
+    is_jpeg = os.path.splitext(to_path)[1].lower() in (".jpg", ".jpeg")
+    cv2.imwrite(to_path, img, JPEG_WRITE_PARAMS if is_jpeg else [])
 
 
 def copy_other(from_path, to_path, _):
