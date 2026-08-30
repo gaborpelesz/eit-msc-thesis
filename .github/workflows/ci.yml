@@ -1,5 +1,13 @@
 name: Build LaTeX document
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'thesis/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'thesis/**'
+      - '.github/workflows/ci.yml'
 jobs:
   build_latex:
     strategy:
@@ -8,11 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Git repository
+        # Submodules are deliberately not checked out: resources/papers is a
+        # private repository and would fail for forks and for the default token.
         uses: actions/checkout@v4
       - if: ${{ matrix.engine == 'pdflatex' }}
         name: Compile LaTeX document
         uses: xu-cheng/latex-action@v3
         with:
+          working_directory: thesis
           root_file: |
             my_thesis.tex
             elteikthesis_minted.tex
@@ -21,6 +32,7 @@ jobs:
         name: Compile LaTeX document
         uses: xu-cheng/latex-action@v3
         with:
+          working_directory: thesis
           root_file: |
             my_thesis.tex
             elteikthesis_minted.tex
@@ -31,6 +43,6 @@ jobs:
         with:
           name: thesis-${{ matrix.engine }}
           path: |
-            my_thesis.pdf
-            elteikthesis_minted.pdf
+            thesis/my_thesis.pdf
+            thesis/elteikthesis_minted.pdf
           if-no-files-found: error
