@@ -1,0 +1,86 @@
+# Manifest for the resources/papers submodule.
+#
+# That submodule is private, because `version: publisher` entries below are
+# publisher versions of record and may not be redistributed. This manifest
+# lives in the public repository so the bibliography stays reproducible: every
+# source can be retrieved from the identifier given here without access to the
+# submodule.
+#
+# Identifiers were read out of the PDFs themselves where embedded, and verified
+# against the publisher or CVF open-access record otherwise.
+
+papers:
+  - file: acmh_acmm.pdf
+    title: Multi-Scale Geometric Consistency Guided Multi-View Stereo
+    authors: Qingshan Xu, Wenbing Tao
+    venue: CVPR 2019, pp. 5483-5492
+    url: https://openaccess.thecvf.com/content_CVPR_2019/html/Xu_Multi-Scale_Geometric_Consistency_Guided_Multi-View_Stereo_CVPR_2019_paper.html
+    version: publisher
+    methods: [ACMH, ACMM]
+
+  - file: acmp.pdf
+    title: Planar Prior Assisted PatchMatch Multi-View Stereo
+    authors: Qingshan Xu, Wenbing Tao
+    arxiv: 1912.11744v1
+    version: preprint
+    methods: [ACMP]
+
+  - file: acmmp.pdf
+    title: Multi-Scale Geometric Consistency Guided and Planar Prior Assisted Multi-View Stereo
+    authors: Qingshan Xu, Weihang Kong, Wenbing Tao, Marc Pollefeys
+    venue: IEEE TPAMI 45(4), 2023
+    doi: 10.1109/TPAMI.2022.3200074
+    version: publisher
+    methods: [ACMMP]
+
+  - file: adp.pdf
+    title: Adaptive Patch Deformation for Textureless-Resilient Multi-View Stereo
+    authors: Yuesong Wang, Zhaojie Zeng, Tao Guan, Wei Yang, Zhuo Chen, Wenkai Liu, Luoyuan Xu, Yawei Luo
+    venue: CVPR 2023, pp. 1621-1630
+    url: https://github.com/whoiszzj/APD-MVS
+    version: publisher
+    methods: [APD-MVS]
+
+  - file: hpm_hpm.pdf
+    title: Hierarchical Prior Mining for Non-local Multi-View Stereo
+    arxiv: 2303.09758v1
+    version: preprint
+    methods: [HPM-MVS, HPM-MVS_plusplus]
+
+  - file: mp_mvs.pdf
+    title: "MP-MVS: Multi-Scale Windows PatchMatch and Planar Prior Multi-View Stereo"
+    arxiv: 2309.13294v1
+    version: preprint
+    methods: [MP-MVS]
+
+  - file: dpe.pdf
+    title: Dual-Level Precision Edges Guided Multi-View Stereo with Accurate Planarization
+    arxiv: 2412.20328v1
+    version: preprint
+    methods: [DPE-MVS]
+
+  - file: 2412.11578v1.pdf
+    title: "DVP-MVS: Synergize Depth-Edge and Visibility Prior for Multi-View Stereo"
+    arxiv: 2412.11578v1
+    version: preprint
+    methods: [DVP-MVS]
+
+  - file: 2506.13215v2.pdf
+    title: "DVP-MVS++: Synergize Depth-Normal-Edge and Harmonized Visibility Prior for Multi-View Stereo"
+    authors: Zhenlong Yuan, Dapeng Zhang, Zehao Li, Chengxuan Qian, Jianing Chen, Yinda Chen, Kehua Chen, Tianlu Mao, Zhaoxin Li, Hao Jiang, Zhaoqi Wang
+    arxiv: 2506.13215v2
+    version: preprint
+    methods: [DVP-MVS]
+
+  - file: msp_mvs.pdf
+    title: "MSP-MVS: Multi-Granularity Segmentation Prior Guided Multi-View Stereo"
+    arxiv: 2407.19323v5
+    version: preprint
+
+  - file: cmvs_furukawa2010.pdf
+    title: Towards Internet-scale Multi-view Stereo
+    authors: Yasutaka Furukawa, Brian Curless, Steven M. Seitz, Richard Szeliski
+    venue: CVPR 2010, pp. 1434-1441
+    doi: 10.1109/CVPR.2010.5539802
+    version: publisher
+    methods: [CMVS]

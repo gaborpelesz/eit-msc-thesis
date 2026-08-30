@@ -31,3 +31,6 @@
 [submodule "methods/DVP-MVS"]
 	path = benchmark/methods/DVP-MVS
 	url = https://github.com/gaborpelesz/DVP-MVS.git
+[submodule "papers"]
+	path = resources/papers
+	url = https://github.com/gaborpelesz/eit-msc-thesis-papers.git
