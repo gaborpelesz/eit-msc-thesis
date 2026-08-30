@@ -34,3 +34,6 @@
 [submodule "papers"]
 	path = resources/papers
 	url = https://github.com/gaborpelesz/eit-msc-thesis-papers.git
+[submodule "obsidian"]
+	path = resources/obsidian
+	url = https://github.com/gaborpelesz/eit-msc-thesis-obsidian.git

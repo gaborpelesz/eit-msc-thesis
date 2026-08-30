@@ -9,7 +9,7 @@ from Implementation Overhead"*
   implementations under `benchmark/methods/`. The deviation-documentation policy
   below governs every change to a method fork or to the measurement pipeline.
 - **`thesis/`** — LaTeX manuscript (ELTE FI template).
-- **`resources/`** — notes, session logs, and the papers submodule.
+- **`resources/`** — thesis paperwork, plus the papers and obsidian submodules.
 
 Two rules that outrank convenience everywhere in this repo:
 
@@ -31,6 +31,11 @@ All submodules are declared in the repo-root `.gitmodules`; git does not read a
   **This repo is public; that one must never be made public, and no workflow may
   mirror, attach, or publish its contents.** `git clone --recursive` therefore
   fails on `papers` for anyone without access; the failure is benign.
+- `resources/obsidian` — submodule name `obsidian`, pointing at the **private**
+  `eit-msc-thesis-obsidian`. It holds unfiltered working notes: reading
+  commentary, critiques of published work, open questions. Written for the
+  author, not for publication. **Never move note content into this public
+  repository**; `--recursive` fails on it too, benignly.
 
 `resources/papers.yaml` maps each PDF filename to its arXiv ID or DOI, so the
 bibliography stays reproducible for readers who cannot clone the submodule.
@@ -156,11 +161,11 @@ normalized number.
 
 ---
 
-# `resources/` — notes and papers
-
-Notes, sessions, and information about the on-going Master's thesis. An Obsidian
-vault; wiki-links resolve relative to `resources/`.
+# `resources/` — paperwork, papers and notes
 
 - The topic is described in `resources/Thesis declaration form.md`.
 - Accompanying papers are in `resources/papers/` (private submodule, see above).
-- Session logs live in `resources/sessions/`.
+- Working notes are in `resources/obsidian/` (private submodule, see above); the
+  Obsidian vault root is that directory, so wiki-links resolve within it. Dated
+  session logs live in `resources/obsidian/sessions/`, and further note
+  categories belong alongside it at that level.
