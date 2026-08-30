@@ -76,11 +76,3 @@ papers:
     title: "MSP-MVS: Multi-Granularity Segmentation Prior Guided Multi-View Stereo"
     arxiv: 2407.19323v5
     version: preprint
-
-  - file: cmvs_furukawa2010.pdf
-    title: Towards Internet-scale Multi-view Stereo
-    authors: Yasutaka Furukawa, Brian Curless, Steven M. Seitz, Richard Szeliski
-    venue: CVPR 2010, pp. 1434-1441
-    doi: 10.1109/CVPR.2010.5539802
-    version: publisher
-    methods: [CMVS]
