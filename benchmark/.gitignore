@@ -1,0 +1,16 @@
+/data/
+build/
+
+.vscode/
+.clangd/
+.cache/
+
+.DS_Store
+
+.mypy_cache/
+__pycache__/
+.python-version
+
+test_eval/
+
+/evaluations/

@@ -1,0 +1,13 @@
+**/build/
+**/.clangd/
+**/.cache/
+
+/evaluations/
+
+**/.DS_Store
+
+**/.git/
+**/.venv/
+**/.mypy_cache/
+**/__pycache__/
+**/.python-version

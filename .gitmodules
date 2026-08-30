@@ -1,0 +1,33 @@
+[submodule "HPM-MVS_plusplus"]
+	path = benchmark/methods/HPM-MVS_plusplus
+	url = https://github.com/gaborpelesz/HPM-MVS_plusplus
+[submodule "APD-MVS"]
+	path = benchmark/methods/APD-MVS
+	url = https://github.com/gaborpelesz/APD-MVS.git
+[submodule "ACMMP"]
+	path = benchmark/methods/ACMMP
+	url = https://github.com/gaborpelesz/ACMMP.git
+[submodule "HPM-MVS"]
+	path = benchmark/methods/HPM-MVS
+	url = https://github.com/gaborpelesz/HPM-MVS.git
+[submodule "ACMH"]
+	path = benchmark/methods/ACMH
+	url = https://github.com/gaborpelesz/ACMH.git
+[submodule "cuda-multi-view-stereo"]
+	path = benchmark/methods/cuda-multi-view-stereo
+	url = https://github.com/gaborpelesz/cuda-multi-view-stereo.git
+[submodule "ACMP"]
+	path = benchmark/methods/ACMP
+	url = https://github.com/gaborpelesz/ACMP.git
+[submodule "ACMM"]
+	path = benchmark/methods/ACMM
+	url = https://github.com/gaborpelesz/ACMM.git
+[submodule "MP-MVS"]
+	path = benchmark/methods/MP-MVS
+	url = https://github.com/gaborpelesz/MP-MVS.git
+[submodule "methods/DPE-MVS"]
+	path = benchmark/methods/DPE-MVS
+	url = https://github.com/gaborpelesz/DPE-MVS.git
+[submodule "methods/DVP-MVS"]
+	path = benchmark/methods/DVP-MVS
+	url = https://github.com/gaborpelesz/DVP-MVS.git

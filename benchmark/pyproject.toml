@@ -1,0 +1,20 @@
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[project]
+name = "eval"
+version = "0.1.0"
+description = "Evaluation scripts"
+requires-python = ">=3.10"
+dependencies = [
+    "pyquaternion",
+    "opencv-python",
+    "tqdm",
+    "eth3d @ ${PROJECT_ROOT}/eth3d"
+]
+
+[project.scripts]
+eval-cli = "eval.eval:main"
+colmap2mvsnet_acm_perf = "eval.colmap2mvsnet_acm_perf:main"
+
