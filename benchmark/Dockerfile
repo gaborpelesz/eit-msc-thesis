@@ -166,8 +166,8 @@ RUN cd /sota/MP-MVS \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
 
-COPY methods/DPE-MVS/DPE-MVS /sota/DPE-MVS/
-RUN cd /sota/DPE-MVS \
+COPY methods/DPE-MVS/ /sota/DPE-MVS/
+RUN cd /sota/DPE-MVS/DPE-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \

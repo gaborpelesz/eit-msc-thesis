@@ -26,10 +26,7 @@
 #                   the Dockerfile configures ("." when it is the fork root)
 #   executable      built binary, relative to the FORK ROOT (i.e.
 #                   <source_subdir>/build/<target>), as the Dockerfile produces
-#                   it. The container mirrors the fork root at /sota/<name>,
-#                   except DPE-MVS, whose Dockerfile line copies only
-#                   methods/DPE-MVS/DPE-MVS into /sota/DPE-MVS; the relative
-#                   path happens to coincide.
+#                   it. The container mirrors the fork root at /sota/<name>.
 #   converter       the converter script SHIPPED BY THE FORK, relative to the
 #                   fork root. The `author` configuration runs it (pipeline as
 #                   released); `norm10` substitutes the shared converter (see
