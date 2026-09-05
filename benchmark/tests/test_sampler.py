@@ -45,3 +45,55 @@ def test_warm_cache_reads_every_file(tmp_path):
     (tmp_path / "a.jpg").write_bytes(b"x" * 1000)
     (tmp_path / "sub" / "b.jpg").write_bytes(b"y" * 2000)
     assert smp.warm_cache(tmp_path) == 3000
+
+
+def test_cgroup_io_sums_every_device(tmp_path):
+    (tmp_path / "io.stat").write_text(
+        "259:2 rbytes=8192 wbytes=1063014400 rios=2 wios=1221 dbytes=0 dios=0\n"
+        "8:0 rbytes=1000 wbytes=2000 rios=1 wios=1 dbytes=0 dios=0\n"
+    )
+    assert smp._cgroup_io(tmp_path) == (9192, 1063016400)
+
+
+def test_cgroup_for_container_needs_a_readable_io_stat(tmp_path):
+    scope = tmp_path / "docker-abc.scope"
+    scope.mkdir()
+    roots = (str(tmp_path / "docker-{cid}.scope"),)
+    assert smp.cgroup_for_container("abc", roots) is None
+    (scope / "io.stat").write_text("")
+    assert smp.cgroup_for_container("abc", roots) == scope
+    assert smp.cgroup_for_container(None, roots) is None
+
+
+def test_unreadable_io_counters_are_null_not_zero(tmp_path, monkeypatch):
+    """`/proc/<pid>/io` of a root-owned container process is not readable by
+    the harness. A recorded 0 would read as `this method performed no I/O`."""
+    monkeypatch.setattr(smp, "_proc_io", lambda pid: None)
+    sampler = smp.Sampler(interval_s=0.02)
+    sampler.set_root_pid(os.getpid())
+    sampler.start()
+    time.sleep(0.1)
+    sampler.stop()
+    sampler.join(timeout=5)
+
+    summary = sampler.summary()
+    assert summary["io_read_bytes"] is None
+    assert summary["io_write_bytes"] is None
+    assert summary["io_attribution"] is None
+    assert "readable" in summary["io_unavailable_reason"]
+
+
+def test_the_cgroup_is_preferred_over_per_process_counters(tmp_path, monkeypatch):
+    (tmp_path / "io.stat").write_text("259:2 rbytes=7 wbytes=11 rios=1 wios=1\n")
+    monkeypatch.setattr(smp, "_proc_io", lambda pid: (10**9, 10**9))
+    sampler = smp.Sampler(interval_s=0.02)
+    sampler.set_root_pid(os.getpid())
+    sampler.set_cgroup(tmp_path)
+    sampler.start()
+    time.sleep(0.1)
+    sampler.stop()
+    sampler.join(timeout=5)
+
+    summary = sampler.summary()
+    assert (summary["io_read_bytes"], summary["io_write_bytes"]) == (7, 11)
+    assert summary["io_attribution"] == "cgroup"

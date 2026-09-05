@@ -496,6 +496,7 @@ def execute(
         sampler.start()
         cid = _docker(run_cmd)
         sampler.set_root_pid(_container_pid(cid, docker=docker))
+        sampler.set_cgroup(smp.cgroup_for_container(cid))
         # R-OBS-02: logs stream to disk while the run is in flight.
         log_proc = subprocess.Popen(
             [docker, "logs", "-f", cid], stdout=stdout_log, stderr=stderr_log

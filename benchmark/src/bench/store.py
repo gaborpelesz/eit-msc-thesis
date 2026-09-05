@@ -290,6 +290,7 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         "peak_gpu_temp_c": telemetry.get("peak_gpu_temp_c"),
         "io_read_bytes": telemetry.get("io_read_bytes"),
         "io_write_bytes": telemetry.get("io_write_bytes"),
+        "io_attribution": telemetry.get("io_attribution"),
         "telemetry_json": json.dumps(telemetry, default=str),
         "quality": quality or [],
         "primary_tolerance": spec.primary_tolerance,

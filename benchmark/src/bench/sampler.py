@@ -48,6 +48,47 @@ COLUMNS = (
 )
 
 
+# The measured process runs as root inside the container, so `/proc/<pid>/io`
+# and `smaps_rollup` are mode 0400 root-owned and an unprivileged harness may
+# not read them: per-pid I/O is not available at all on this deployment. The
+# container's cgroup v2 `io.stat` is world-readable and accounts for every
+# process in the container, including short-lived children the process-tree
+# refresh can miss, so it is the preferred source and `/proc` is the fallback.
+CGROUP_ROOTS = ("/sys/fs/cgroup/system.slice/docker-{cid}.scope", "/sys/fs/cgroup/docker/{cid}")
+
+
+def cgroup_for_container(cid, roots=CGROUP_ROOTS):
+    """The container's cgroup v2 directory, or None when it is not readable."""
+    if not cid:
+        return None
+    for template in roots:
+        path = Path(template.format(cid=cid))
+        if (path / "io.stat").is_file():
+            try:
+                (path / "io.stat").read_text()
+            except OSError:
+                continue
+            return path
+    return None
+
+
+def _cgroup_io(path):
+    """(read_bytes, write_bytes) summed over devices, or None."""
+    try:
+        text = (Path(path) / "io.stat").read_text()
+    except OSError:
+        return None
+    reads = writes = 0
+    for line in text.splitlines():
+        for token in line.split()[1:]:
+            key, _, value = token.partition("=")
+            if key == "rbytes":
+                reads += int(value)
+            elif key == "wbytes":
+                writes += int(value)
+    return reads, writes
+
+
 def _proc_io(pid):
     """(read_bytes, write_bytes) from /proc/<pid>/io, or None."""
     try:
@@ -87,6 +128,9 @@ class Sampler(threading.Thread):
         self.gpu_memory_total_bytes = None
         self._nvml = None
         self._io_by_pid = {}
+        self._cgroup = None
+        self.io_attribution = None
+        self.io_unavailable_reason = None
         self._tree_cache = None
         self._tree_refreshed = 0.0
         self._t0 = None
@@ -94,6 +138,10 @@ class Sampler(threading.Thread):
     def set_root_pid(self, pid):
         """The container's host PID; the measured tree is rooted at it."""
         self.root_pid = pid
+
+    def set_cgroup(self, path):
+        """The measured container's cgroup v2 directory, for its I/O counters."""
+        self._cgroup = Path(path) if path else None
 
     def stop(self):
         self._stop.set()
@@ -201,15 +249,38 @@ class Sampler(threading.Thread):
         return rss, (uss if uss_ok else None)
 
     def _io_sample(self, procs):
-        """Sum monotonic per-pid counters, keeping the last value of dead pids."""
+        """The run's I/O counters, or (None, None) when none can be read.
+
+        Never zero for want of a reading: a recorded 0 would be indexed and
+        plotted as "this method performed no I/O", which is a different claim
+        from "the counters were not readable" (R-IO-01, R-IO-02).
+        """
+        if self._cgroup is not None:
+            values = _cgroup_io(self._cgroup)
+            if values is not None:
+                self.io_attribution = "cgroup"
+                return values
+
+        readable = False
         for proc in procs:
             values = _proc_io(proc.pid)
-            if values is not None:
-                previous = self._io_by_pid.get(proc.pid, (0, 0))
-                self._io_by_pid[proc.pid] = (
-                    max(previous[0], values[0]),
-                    max(previous[1], values[1]),
+            if values is None:
+                continue
+            readable = True
+            previous = self._io_by_pid.get(proc.pid, (0, 0))
+            self._io_by_pid[proc.pid] = (
+                max(previous[0], values[0]),
+                max(previous[1], values[1]),
+            )
+        if not self._io_by_pid:
+            if procs and not readable and self.io_unavailable_reason is None:
+                self.io_unavailable_reason = (
+                    "neither the container's cgroup io.stat nor /proc/<pid>/io was "
+                    "readable; the measured process runs as root and the harness "
+                    "does not"
                 )
+            return None, None
+        self.io_attribution = "proc"
         reads = sum(v[0] for v in self._io_by_pid.values())
         writes = sum(v[1] for v in self._io_by_pid.values())
         return reads, writes
@@ -354,6 +425,8 @@ class Sampler(threading.Thread):
             "energy_j": energy if seen else None,
             "io_read_bytes": peak("io_read_bytes"),
             "io_write_bytes": peak("io_write_bytes"),
+            "io_attribution": self.io_attribution,
+            "io_unavailable_reason": self.io_unavailable_reason,
             "sampler_errors": list(self.errors),
         }
 
