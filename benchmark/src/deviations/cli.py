@@ -1,6 +1,6 @@
 """`deviations` -- manifest and fork-deviation tooling.
 
-    deviations verify [--manifest PATH] [--arch 75|120] [--binaries DIR]
+    deviations verify [--manifest PATH] [--arch 75|120] [--binaries DIR | --image NAME]
     deviations list   [--manifest PATH]
     deviations render [--manifest PATH]
 """
@@ -32,11 +32,16 @@ def main():
         "--arch",
         type=int,
         choices=[75, 120],
-        help="CUDA architecture the binaries must carry; requires --binaries",
+        help="CUDA architecture the method kernels must carry; requires --binaries or --image",
     )
-    verify_parser.add_argument(
+    where = verify_parser.add_mutually_exclusive_group()
+    where.add_argument(
         "--binaries",
-        help="directory holding the built method binaries (the image's /sota)",
+        help="host directory holding the built method binaries (needs cuobjdump on the host)",
+    )
+    where.add_argument(
+        "--image",
+        help="Docker image whose /sota holds the built binaries; cuobjdump runs inside it",
     )
 
     list_parser = subparsers.add_parser(
@@ -52,9 +57,9 @@ def main():
     args = parser.parse_args()
 
     if args.command == "verify":
-        if (args.arch is None) != (args.binaries is None):
-            parser.error("--arch and --binaries must be given together")
-        return vf.verify(args.manifest, arch=args.arch, binaries=args.binaries)
+        if (args.arch is None) != (args.binaries is None and args.image is None):
+            parser.error("--arch must be given together with --binaries or --image")
+        return vf.verify(args.manifest, arch=args.arch, binaries=args.binaries, image=args.image)
 
     if args.command == "list":
         return vf.list_deviations(args.manifest)

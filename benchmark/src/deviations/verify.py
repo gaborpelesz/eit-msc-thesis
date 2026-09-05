@@ -273,55 +273,117 @@ def verify_commits(method, fork, report):
             )
 
 
-def elf_architectures(binary):
-    """sm_XX values embedded in a CUDA binary, via cuobjdump --list-elf."""
+# cv::cudev::… — the only namespace the statically linked OpenCV CUDA modules
+# contribute. `cv::` alone is too broad: CUMVS's own kernels are in cv::cuda::gpu.
+OPENCV_KERNEL_PREFIX = "_ZN2cv5cudev"
+
+
+def kernels_by_architecture(res_usage):
+    """Parse `cuobjdump -res-usage` output into {sm_XX: [kernel symbols]}.
+
+    Only SASS (`Fatbin elf code`) sections count; PTX is JIT-compiled at load
+    time and says nothing about which architecture the binary was built for.
+    """
+    kernels = {}
+    section = arch = None
+    for line in res_usage.splitlines():
+        if line.startswith("Fatbin elf code"):
+            section = "elf"
+        elif line.startswith("Fatbin ptx code"):
+            section = "ptx"
+        elif line.startswith("arch = "):
+            arch = line.split("=", 1)[1].strip()
+        else:
+            m = re.match(r"\s*Function (\S+?):?$", line)
+            if m and section == "elf" and arch:
+                kernels.setdefault(arch, []).append(m.group(1))
+    return kernels
+
+
+def split_method_kernels(kernels):
+    """Architectures carrying the method's own kernels vs. only OpenCV's.
+
+    OpenCV is linked statically and ships SASS for every architecture in its
+    own CUDA_ARCH_BIN, so the fat-binary list of a method executable is
+    dominated by `cv::` kernels; the build target has to be read off the
+    kernels the fork itself compiled.
+    """
+    own = {a for a, names in kernels.items() if any(not n.startswith(OPENCV_KERNEL_PREFIX) for n in names)}
+    opencv = {a for a, names in kernels.items() if any(n.startswith(OPENCV_KERNEL_PREFIX) for n in names)}
+    return own, opencv
+
+
+def binary_candidates(method, root):
+    """The built executable, under either of the two layouts the image uses."""
+    fork_name = Path(method["path"]).name
+    return [root / fork_name / method["executable"], root / method["executable"]]
+
+
+def res_usage_from_dir(method, binaries_dir):
+    for candidate in binary_candidates(method, Path(binaries_dir)):
+        if candidate.is_file():
+            proc = subprocess.run(
+                ["cuobjdump", "-res-usage", str(candidate)], capture_output=True, text=True
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(proc.stderr.strip() or "cuobjdump failed")
+            return candidate, proc.stdout
+    return None, None
+
+
+IMAGE_SOURCE_ROOT = "/sota"
+
+
+def res_usage_from_image(method, image):
+    """Run cuobjdump inside the image; the host need not have a CUDA toolkit."""
+    candidates = binary_candidates(method, Path(IMAGE_SOURCE_ROOT))
+    script = "; ".join(
+        f'[ -f "{c}" ] && {{ echo "BINARY {c}"; exec cuobjdump -res-usage "{c}"; }}' for c in candidates
+    )
+    script += "; exit 3"
     proc = subprocess.run(
-        ["cuobjdump", "--list-elf", str(binary)],
+        ["docker", "run", "--rm", "--entrypoint", "bash", image, "-c", script],
         capture_output=True,
         text=True,
     )
+    if proc.returncode == 3:
+        return None, None
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or "cuobjdump failed")
-    return sorted(set(re.findall(r"sm_(\d+)", proc.stdout)))
+        raise RuntimeError(proc.stderr.strip() or "cuobjdump failed inside the image")
+    first, _, rest = proc.stdout.partition("\n")
+    return f"{image}:{first.removeprefix('BINARY ')}", rest
 
 
-def resolve_binary(method, binaries_dir):
-    """The built executable, under either of the two layouts the image uses."""
-    fork_name = Path(method["path"]).name
-    for candidate in (
-        binaries_dir / fork_name / method["executable"],
-        binaries_dir / method["executable"],
-    ):
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def verify_arch(method, binaries_dir, arch, report):
+def verify_arch(method, arch, report, binaries=None, image=None):
     name = method.get("name", "<unnamed>")
-    binary = resolve_binary(method, binaries_dir)
-    if binary is None:
-        report.check(
-            name,
-            "built binary",
-            False,
-            f"`{method['executable']}` not found under {binaries_dir}",
-        )
-        return
+    where = binaries if binaries is not None else image
     try:
-        architectures = elf_architectures(binary)
+        binary, text = (
+            res_usage_from_dir(method, binaries) if binaries is not None else res_usage_from_image(method, image)
+        )
     except (RuntimeError, FileNotFoundError) as exc:
-        report.check(name, "cuobjdump --list-elf", False, str(exc))
+        report.check(name, "cuobjdump -res-usage", False, str(exc))
         return
+    if binary is None:
+        report.check(name, "built binary", False, f"`{method['executable']}` not found under {where}")
+        return
+    own, opencv = split_method_kernels(kernels_by_architecture(text))
+    target = f"sm_{arch}"
     report.check(
         name,
-        f"CUDA architecture sm_{arch}",
-        architectures == [str(arch)],
-        f"{binary} carries {', '.join('sm_' + a for a in architectures) or 'no SASS'}",
+        f"method kernels built for {target} only",
+        own == {target},
+        f"{binary}: method SASS for {', '.join(sorted(own)) or 'no architecture'}",
+    )
+    report.check(
+        name,
+        f"linked OpenCV CUDA kernels cover {target}",
+        not opencv or target in opencv,
+        f"{binary}: OpenCV SASS for {', '.join(sorted(opencv))}",
     )
 
 
-def verify(manifest_path, arch=None, binaries=None):
+def verify(manifest_path, arch=None, binaries=None, image=None):
     """Run every check. Returns the process exit code."""
     path = Path(manifest_path)
     report = Report()
@@ -345,8 +407,8 @@ def verify(manifest_path, arch=None, binaries=None):
         if fork is not None:
             verify_commits(method, fork, report)
         # An excluded method is not built, so there is no binary to check.
-        if arch is not None and binaries is not None and method.get("status") != "excluded":
-            verify_arch(method, Path(binaries), arch, report)
+        if arch is not None and method.get("status") != "excluded":
+            verify_arch(method, arch, report, binaries=binaries, image=image)
 
     print()
     if report.failures:

@@ -76,7 +76,8 @@ def test_mp_mvs_gets_its_config_file_argument(write_spec, spec_dict, manifest):
     run = sp.expand(spec)[0]
     entry = sp.method_entry(manifest, "MP-MVS")
     argv = rn.resolve_invocation(spec, entry, run)
-    assert argv == ["/sota/MP-MVS/build/MPMVS", "/work/prepared", entry["config_path"]]
+    # config.yaml must precede the flag: MP-MVS reads argv[2] as the config path (M-005).
+    assert argv == ["/sota/MP-MVS/build/MPMVS", "/work/prepared", entry["config_path"], "--no-debug-output"]
 
 
 @pytest.mark.parametrize(
