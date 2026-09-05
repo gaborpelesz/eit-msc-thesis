@@ -18,7 +18,13 @@ def test_measured_docker_command(write_spec, spec_dict, manifest):
 
     assert command[:3] == ["docker", "run", "-d"]
     assert "--gpus" in command and "device=0" in command
-    assert f"{spec.raw_scene_dir('courtyard', 3200)}:/data:ro" in command
+    raw = spec.raw_scene_dir("courtyard", 3200)
+    # Calibration under both names: ACM converters want `sparse`, APD/DPE/CUMVS
+    # want ETH3D's directory name.
+    assert f"{raw}/images:/data/images:ro" in command
+    assert f"{raw}/dslr_calibration_undistorted:/data/dslr_calibration_undistorted:ro" in command
+    assert f"{raw}/dslr_calibration_undistorted:/data/sparse:ro" in command
+    assert not any(m.endswith(":/data:ro") for m in command)
     assert "MVS_BENCH_PHASES=1" in command
     assert "MVS_BENCH_FILE=/out/phases.txt" in command
     assert command[command.index("--entrypoint") + 1] == "/sota/ACMM/build/ACMM"

@@ -183,11 +183,28 @@ def preprocess_argv(spec, entry, run):
     ] + extra
 
 
+# The ACM-lineage converters read the calibration from `<dense_folder>/sparse`
+# (a COLMAP dense workspace); APD-MVS, DPE-MVS and CUMVS read ETH3D's
+# `dslr_calibration_undistorted` directly. Both layouts are served by binding
+# the calibration directory under both names, so no fork's converter is edited
+# and no files are copied (R-EXP-06).
+def scene_mounts(spec, run):
+    raw = spec.raw_scene_dir(run.scene, run.width)
+    data = spec.container["data"]
+    pairs = [
+        ("images", "images"),
+        ("dslr_calibration_undistorted", "dslr_calibration_undistorted"),
+        ("dslr_calibration_undistorted", "sparse"),
+    ]
+    mounts = []
+    for host_sub, container_sub in pairs:
+        mounts += ["-v", f"{raw / host_sub}:{data}/{container_sub}:ro"]
+    return mounts
+
+
 def docker_run_argv(spec, run, argv, work_dir, detach, name=None, docker="docker", env=None):
     entrypoint = argv[0]
-    mounts = [
-        "-v",
-        f"{spec.raw_scene_dir(run.scene, run.width)}:{spec.container['data']}:ro",
+    mounts = scene_mounts(spec, run) + [
         "-v",
         f"{work_dir / 'prepared'}:{spec.container['work']}/prepared",
         "-v",

@@ -265,6 +265,22 @@ global_deviations:
     reversible: flag BENCH_PHASES=0 at compile time; env var at run time
     evidence: phase-survey.md § D
 
+  - class: interface
+    status: active
+    description: >-
+      Dataset presentation. The harness binds an ETH3D scene into the container
+      as three read-only mounts: `images/`, `dslr_calibration_undistorted/`,
+      and the same calibration directory a second time as `sparse/`. The
+      ACM-lineage converters (ACMH, ACMM, ACMP, ACMMP, HPM-MVS, HPM-MVS++,
+      MP-MVS) read `<dense_folder>/sparse` as a COLMAP dense workspace would
+      have it; APD-MVS, DPE-MVS and CUMVS read `dslr_calibration_undistorted`
+      directly. Both see identical bytes; no fork's converter is edited and
+      nothing is copied or rewritten. Image paths in images.txt carry the
+      `dslr_images_undistorted/` prefix, so `images/<name>` resolves for both.
+    affects: none
+    reversible: no
+    evidence: benchmark/src/bench/runner.py scene_mounts
+
 
 # --------------------------------------------------------------------------
 # Methods
