@@ -368,7 +368,7 @@ def calc_score_old_chunked(queue_chunk, *args, **kargs):
     return [calc_score(item, *args, **kargs) for item in queue_chunk]
 
 
-def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cams_dir, padding, interval_scale=1, max_d=192, multiprocessing=True):
+def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cams_dir, padding, interval_scale=1, max_d=192, multiprocessing=True, neighbours=20):
     t0 = time.perf_counter()
     print("Reading model...")
     sparse_dir = os.path.join(dense_folder, 'dslr_calibration_undistorted')
@@ -465,7 +465,7 @@ def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cam
         score[i, j] = s
         score[j, i] = s
     view_sel = []
-    num_view = min(20, len(images) - 1)
+    num_view = min(neighbours, len(images) - 1)
     for i in range(len(images)):
         sorted_score = np.argsort(score[i])[::-1]
         view_sel.append([(k, score[i, k]) for k in sorted_score[:num_view]])
@@ -599,6 +599,12 @@ def main():
         action="store_true",
         help="Resize all images and cameras to the camera with the maximum size.",
     )
+    parser.add_argument(
+        "--neighbours",
+        type=int,
+        default=20,
+        help="Source views written per reference image in pair.txt (every shipped converter emits 20).",
+    )
     args = parser.parse_args()
 
     os.makedirs(os.path.join(args.save_folder), exist_ok=True)
@@ -615,7 +621,7 @@ def main():
         shutil.rmtree(save_cams_dir)
     os.makedirs(save_cams_dir)
 
-    processing_single_scene(args.save_folder, args.dense_folder, save_images_dir, save_cams_dir, args.padding, args.interval_scale, args.max_d, (not args.single_thread))
+    processing_single_scene(args.save_folder, args.dense_folder, save_images_dir, save_cams_dir, args.padding, args.interval_scale, args.max_d, (not args.single_thread), args.neighbours)
 
 
 if __name__ == '__main__':

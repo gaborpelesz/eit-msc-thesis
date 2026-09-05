@@ -35,10 +35,8 @@ DEFAULT_CONTAINER_PATHS = {
     "evaluator": "ETH3DMultiViewEvaluation",
 }
 
-# Argument lists the harness appends to a converter invocation, per
-# configuration name. `norm10` needs a neighbour-count flag that the shared
-# converter does not implement yet (methods.yaml records it as a planned
-# `--neighbours` flag); a spec may override this map until it lands.
+# Argument lists the harness appends to the shared converter invocation, per
+# configuration name; a spec may override this map.
 DEFAULT_CONVERTER_ARGS = {
     "author": [],
     "norm10": ["--neighbours", "10"],
