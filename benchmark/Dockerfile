@@ -69,6 +69,15 @@ FROM base AS eval
 # override on a development machine, e.g. --build-arg CUDA_ARCH=75.
 ARG CUDA_ARCH=120
 
+# Phase-timer instrumentation (bench_timer.h, vendored into all ten forks).
+# 1 keeps the timer compiled in; it stays silent unless MVS_BENCH_PHASES is set
+# at run time. --build-arg BENCH_PHASES=0 expands every BENCH_* macro to
+# nothing, which is what the instrumented-vs-compiled-out byte-identity check
+# (SPEC R-TIM-09) compares against. It has to reach the host and the device
+# compiler separately: the forks include bench_timer.h from both .cpp and .cu
+# translation units, and CMAKE_CXX_FLAGS does not feed nvcc.
+ARG BENCH_PHASES=1
+
 WORKDIR /
 
 COPY --link --from=deps /deps/install /deps/install
@@ -83,6 +92,8 @@ RUN cd /sota/cuda-multi-view-stereo \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 
@@ -94,6 +105,8 @@ RUN cd /sota/ACMH \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/ACMM/ /sota/ACMM/
@@ -104,6 +117,8 @@ RUN cd /sota/ACMM \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/ACMP/ /sota/ACMP/
@@ -114,6 +129,8 @@ RUN cd /sota/ACMP \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/ACMMP/ /sota/ACMMP/
@@ -124,6 +141,8 @@ RUN cd /sota/ACMMP \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/APD-MVS/ /sota/APD-MVS/
@@ -134,6 +153,8 @@ RUN cd /sota/APD-MVS \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/HPM-MVS/ /sota/HPM-MVS/
@@ -144,6 +165,8 @@ RUN cd /sota/HPM-MVS/HPM-MVS \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/HPM-MVS_plusplus/ /sota/HPM-MVS_plusplus/
@@ -154,6 +177,8 @@ RUN cd /sota/HPM-MVS_plusplus \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/MP-MVS/ /sota/MP-MVS/
@@ -164,6 +189,8 @@ RUN cd /sota/MP-MVS \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY methods/DPE-MVS/ /sota/DPE-MVS/
@@ -174,6 +201,8 @@ RUN cd /sota/DPE-MVS/DPE-MVS \
       -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
