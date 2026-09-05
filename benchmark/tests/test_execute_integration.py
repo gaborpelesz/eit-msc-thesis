@@ -67,6 +67,9 @@ def test_successful_run_produces_a_complete_record(prepared_spec, manifest, fake
     assert record["run_key"] == run.key
     assert record["wall_time_s"] > 0
     assert record["preprocess_convert_s"] > 0
+    assert record["preprocess_argv"][-4:] == [
+        "--dense_folder", "/data", "--save_folder", "/work/prepared"
+    ]
     assert record["container_wall_time_s"] == pytest.approx(12.1, abs=0.01)
     assert record["f1_primary"] == 0.55
     assert len(record["quality"]) == 5

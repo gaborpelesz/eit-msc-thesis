@@ -258,6 +258,10 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         "container_wall_time_s": result.get("container_wall_time_s"),
         "container_startup_s": result.get("container_startup_s"),
         "preprocess_convert_s": preprocess.get("duration_s"),
+        # R-EXP-06/R-EXP-08: the neighbour count of a normalized configuration
+        # reaches the method only through this argv, so it is recorded as run,
+        # not only as the configuration that was asked for.
+        "preprocess_argv": preprocess.get("argv") or [],
         "container_started_at": result.get("container_started_at"),
         "container_finished_at": result.get("container_finished_at"),
         "clock_hold": result.get("clock_hold")
