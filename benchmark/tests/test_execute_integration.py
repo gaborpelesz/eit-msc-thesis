@@ -148,3 +148,37 @@ def test_keep_intermediates_leaves_the_scratch_tree(prepared_spec, manifest, fak
     _, _, record = _run_once(prepared_spec, manifest, fake_docker)
     assert Path(record["work_dir"]).exists()
     assert any("intermediates kept" in note for note in record["notes"])
+
+
+def test_a_failed_converter_stops_the_run_before_the_measured_stage(
+    prepared_spec, manifest, fake_docker, monkeypatch, tmp_path
+):
+    """HPM-MVS, 2026-09-06: `np.asscalar` killed the fork's own converter and
+    the method binary then ran on the half-written dataset, exited 0 and wrote
+    a header-only PLY. The measured stage must not start at all."""
+    monkeypatch.setenv("FAKE_DOCKER_CONVERT_EXIT", "1")
+    _, final, record = _run_once(prepared_spec, manifest, fake_docker)
+
+    assert record["status"] == "nonzero_exit"
+    evidence = json.loads(record["status_evidence_json"])
+    assert evidence["stage"] == "preprocess.convert"
+    assert "fake converter died" in evidence["stderr_tail"]
+    assert record["wall_time_s"] is None
+    assert record["command"] == []
+    assert record["point_cloud_path"] is None
+    # No measured container was created, so no container state was written.
+    assert not (tmp_path / "docker-state" / "state.json").exists()
+    assert not (final / "stdout.log").exists()
+
+
+def test_a_header_only_point_cloud_is_no_output_not_ok(
+    prepared_spec, manifest, fake_docker, monkeypatch
+):
+    monkeypatch.setenv("FAKE_DOCKER_EMPTY_PLY", "1")
+    _, _, record = _run_once(prepared_spec, manifest, fake_docker)
+
+    assert record["status"] == "no_output"
+    assert record["point_count"] == 0
+    # The cloud is kept as evidence; it is its emptiness that is the result.
+    assert Path(record["point_cloud_path"]).exists()
+    assert json.loads(record["status_evidence_json"])["empty_output"]["point_count"] == 0

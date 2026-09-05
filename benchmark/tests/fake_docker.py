@@ -10,6 +10,8 @@ It understands only what `bench.runner` and `bench.evaluate` invoke: `run`
     FAKE_DOCKER_EXIT        exit code of the measured process (default 0)
     FAKE_DOCKER_STDERR      text the measured process writes to stderr
     FAKE_DOCKER_NO_PHASES   set to skip writing a phase trace
+    FAKE_DOCKER_CONVERT_EXIT exit code of the converter (default 0)
+    FAKE_DOCKER_EMPTY_PLY   write a header-only point cloud (0 vertices)
 """
 
 import json
@@ -53,6 +55,13 @@ def do_run(argv):
 
     prepared = mounted.get("/work/prepared")
     if "-d" not in argv:  # the converter runs in the foreground
+        convert_exit = int(os.environ.get("FAKE_DOCKER_CONVERT_EXIT", "0"))
+        if convert_exit:
+            # A half-written prepared directory, as HPM-MVS's converter leaves
+            # when it dies partway through.
+            prepared.mkdir(parents=True, exist_ok=True)
+            print("Traceback: fake converter died", file=sys.stderr)
+            return convert_exit
         prepared.mkdir(parents=True, exist_ok=True)
         (prepared / "pair.txt").write_text("2\n0\n1 1 100.0\n1\n1 0 100.0\n")
         print("fake converter wrote pair.txt")
@@ -65,7 +74,12 @@ def do_run(argv):
     if output_ply:
         target = prepared / output_ply
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("ply\nformat ascii 1.0\nelement vertex 3\nend_header\n1 2 3\n")
+        if os.environ.get("FAKE_DOCKER_EMPTY_PLY"):
+            target.write_text("ply\nformat ascii 1.0\nelement vertex 0\nend_header\n")
+        else:
+            target.write_text(
+                "ply\nformat ascii 1.0\nelement vertex 3\nend_header\n1 2 3\n"
+            )
     STATE.mkdir(parents=True, exist_ok=True)
     (STATE / "stdout").write_text("fake method stdout\n")
     (STATE / "stderr").write_text(os.environ.get("FAKE_DOCKER_STDERR", ""))

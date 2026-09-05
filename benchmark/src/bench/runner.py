@@ -637,12 +637,24 @@ def collect_point_cloud(spec, entry, run, result, tmp_dir):
             f"previous point cloud moved aside: {move_aside(target, 'superseded')}"
         )
     shutil.move(str(produced), str(target))
+    point_count = ev.ply_point_count(target)
     result["point_cloud"] = {
         "path": str(target),
         "size_bytes": target.stat().st_size,
         "sha256": ev.sha256_file(target),
-        "point_count": ev.ply_point_count(target),
+        "point_count": point_count,
     }
+    # A method that fails on a half-written dataset can still exit 0 and write
+    # a PLY header with no vertices in it (HPM-MVS does exactly this when its
+    # converter died first). An empty cloud is not an output, and a run that
+    # produced one is not `ok`.
+    if not point_count and result.get("status") == "ok":
+        result["status"] = "no_output"
+        result.setdefault("status_evidence", {})["empty_output"] = {
+            "path": str(target),
+            "size_bytes": target.stat().st_size,
+            "point_count": point_count,
+        }
     return result
 
 
