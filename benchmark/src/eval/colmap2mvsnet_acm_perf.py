@@ -253,6 +253,27 @@ def read_model(path, ext):
         points3D = read_points3d_binary(os.path.join(path, "points3D") + ext)
     return cameras, images, points3D
 
+def camera_intrinsic(cam):
+    """The camera matrix, with COLMAP's absolute principal point.
+
+    `cx`/`cy` are absolute pixel coordinates in every COLMAP model and in
+    ETH3D's `dslr_calibration_undistorted`, and `--padding` pads at the bottom
+    and the right only, so the principal point is the same before and after
+    padding. Every shipped ACM converter writes it unchanged, and a normalized
+    configuration is not comparable to the author one unless this one does too.
+    """
+    names = distortion_param_type[cam.model]
+    params = {key: value for key, value in zip(names, cam.params)}
+    if 'f' in names:
+        params['fx'] = params['f']
+        params['fy'] = params['f']
+    return np.array([
+        [params['fx'], 0, params['cx']],
+        [0, params['fy'], params['cy']],
+        [0, 0, 1]
+    ])
+
+
 distortion_param_type = {
     'SIMPLE_PINHOLE': ['f', 'cx', 'cy'],
     'PINHOLE': ['fx', 'fy', 'cx', 'cy'],
@@ -504,17 +525,7 @@ def processing_single_scene(save_folder, dense_folder, save_images_dir, save_cam
 
     # intrinsic
     print("start intrinsic...")
-    intrinsic = {}
-    for camera_id, cam in cameras.items():
-        params_dict = {key: value for key, value in zip(distortion_param_type[cam.model], cam.params)}
-        if 'f' in distortion_param_type[cam.model]:
-            params_dict['fx'] = params_dict['f']
-            params_dict['fy'] = params_dict['f']
-        intrinsic[camera_id] = np.array([
-            [params_dict['fx'], 0, params_dict['cx'] + cam.width/2],
-            [0, params_dict['fy'], params_dict['cy'] + cam.height/2],
-            [0, 0, 1]
-        ])
+    intrinsic = {camera_id: camera_intrinsic(cam) for camera_id, cam in cameras.items()}
     print('intrinsic finished!')
 
     # write
