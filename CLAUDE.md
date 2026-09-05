@@ -65,20 +65,22 @@ integrity outranks convenience in every design decision here.**
 
 ## State of the harness (2026-09-05)
 
-- `benchmark/src/eval/` is the **v0** harness: runs a method on an ETH3D scene,
-  evaluates, writes wall time and F1 to SQLite. It is being replaced by a
-  harness built to the SPEC in the vault (`benchmarking/SPEC.md`): experiment
-  YAML → run list → one container per run → host-side sampler → a
-  **directory-per-run result store** (`run.json`, `telemetry.parquet`, phase
-  trace, logs) queried with DuckDB. No database. The SPEC moves to
-  `benchmark/docs/SPEC.md` once frozen.
+- `benchmark/src/eval/` is the **v0** harness (SQLite, wall time + F1). It is
+  being replaced by `benchmark/src/bench/`, built to the SPEC in the vault
+  (`benchmarking/SPEC.md`): experiment YAML → run list → one container per run →
+  host-side sampler → a **directory-per-run result store** (`run.json`,
+  `telemetry.parquet`, `phases.txt`, logs) queried with DuckDB. No database.
 - `benchmark/methods/methods.yaml`, the `upstream-base` tags and the
-  `deviations` verifier described below **do not exist yet**. The fork audit
-  (vault `TODO.md`, Phase 1) creates them. No thesis measurement has been taken
-  and none may be until they exist.
-- DVP-MVS is checked out but not built, not in the Dockerfile and not in the
-  harness. Making it run is a Phase-1 work item.
-- The Dockerfile builds CUMVS twice (duplicate block); harmless, to be removed.
+  `deviations verify` CLI exist (audit of 2026-09-05; `uv run deviations
+  verify` must pass before any measurement). `deviations render` is a stub.
+- DVP-MVS is excluded from the campaign (its release does not implement the
+  paper's prior and the DL preprocessing was never published — D19-b, F-018);
+  the fork stays pristine and the verifier enforces zero own commits.
+- Phase timer (`bench_timer.h`) and the `--no-debug-output` flag are being
+  added to the ten campaign forks; the Dockerfile still builds CUMVS twice and
+  targets `sm_75` until the fleet image (`sm_120`) lands.
+- What we built and how is journalled in the vault, `methodology/` (one note
+  per artefact); the manuscript's methodology chapter is written from it.
 
 ## Method provenance
 
