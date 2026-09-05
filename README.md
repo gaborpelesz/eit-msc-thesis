@@ -10,7 +10,7 @@ MSc thesis, ELTE Faculty of Informatics.
 |---|---|
 | `benchmark/` | Benchmarking harness for the PatchMatch-MVS family, plus eleven forked method implementations as submodules under `benchmark/methods/`. |
 | `thesis/` | LaTeX manuscript (ELTE FI template) and its build. |
-| `resources/` | Thesis paperwork, the reference paper collection, and the working-notes vault. |
+| `resources/` | Thesis declaration form, the reference paper collection, and the working-notes vault. |
 
 ## Cloning
 

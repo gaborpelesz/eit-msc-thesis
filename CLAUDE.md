@@ -13,9 +13,8 @@ from Implementation Overhead"*
 
 Two rules that outrank convenience everywhere in this repo:
 
-1. Method provenance is load-bearing and easy to get wrong: CUMVS
-   (`cuda-multi-view-stereo`) is **third-party prior art**, not the author's own
-   work. See the provenance table below.
+1. Method provenance is load-bearing and easy to get wrong. See the provenance
+   table below.
 2. Numbers in the manuscript must be generated from the results store, never
    transcribed by hand.
 
