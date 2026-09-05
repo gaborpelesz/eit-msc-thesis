@@ -1,0 +1,894 @@
+# benchmark/methods/methods.yaml
+#
+# SOURCE OF TRUTH for the benchmarking harness and for the deviation policy
+# (`CLAUDE.md` § "Deviation policy", § "Source of truth"). Every fact the
+# harness needs in order to build, invoke, and account for a method lives here:
+# provenance, fork point, executable, invocation, output artefact, pass-name
+# mapping, known limitations, and the deviations that live in the harness
+# rather than in a fork.
+#
+# THIS FILE IS HAND-MAINTAINED. `DEVIATIONS.md`, `deviations.json` and
+# `deviations.tex` are GENERATED from this file plus the forks' git logs and
+# MUST NEVER BE HAND-EDITED.
+#
+# `deviations verify` reads this file and gates every benchmark run. A
+# measurement produced while `verify` was failing may not be quoted.
+#
+# Provenance classes (CLAUDE.md):
+#   published-reference     the authors' own release accompanying a paper
+#   third-party-optimization an external, non-authorial optimization effort.
+#                           CUMVS is this. It is NOT the thesis author's work.
+#   own                     the thesis author's own reimplementation (none yet)
+#
+# Path conventions:
+#   path            submodule path, relative to the repository root
+#   source_subdir   directory inside the fork holding the CMakeLists.txt that
+#                   the Dockerfile configures ("." when it is the fork root)
+#   executable      built binary, relative to the FORK ROOT (i.e.
+#                   <source_subdir>/build/<target>), as the Dockerfile produces
+#                   it. The container mirrors the fork root at /sota/<name>,
+#                   except DPE-MVS, whose Dockerfile line copies only
+#                   methods/DPE-MVS/DPE-MVS into /sota/DPE-MVS; the relative
+#                   path happens to coincide.
+#   converter       the converter script SHIPPED BY THE FORK, relative to the
+#                   fork root. The `author` configuration runs it (pipeline as
+#                   released); `norm10` substitutes the shared converter (see
+#                   configurations and global_deviations).
+#   output_ply      produced point cloud, relative to the PREPARED dataset dir
+#   invocation      argv template. Placeholders: {executable}, {dataset_dir},
+#                   {output_dir}, {gpu_index}, {config}. {config} expands to the
+#                   method's `config_path`; MP-MVS is the only method that takes
+#                   one (see its known_limitations).
+#   fork_sha        null means "must equal the submodule's checked-out HEAD";
+#                   a SHA pins the fork to an exact commit. Left null until the
+#                   audit rewrite of the forks lands.
+#
+# All `upstream_base` SHAs, upstream URLs and default branches are cited from
+# the fork audit: resources/obsidian/benchmarking/surveys/fork-audit.md § A
+# (audit date 2026-09-05), with the per-fork manifest facts from § B.
+# Pass vocabularies are from surveys/phase-survey.md § A and § E.6.
+# Converter variants and the normalized parameter set are from
+# surveys/param-survey.md § C and § E.
+
+version: 1
+audit_source: resources/obsidian/benchmarking/surveys/fork-audit.md
+audit_date: 2026-09-05
+
+
+# --------------------------------------------------------------------------
+# Canonical vocabularies
+# --------------------------------------------------------------------------
+
+# Pass names. Each method's own vocabulary is mapped onto this set in its
+# `passes:` block, so that a phase trace tagged `pass=` is comparable across
+# methods. `hierarchy` is added to the set proposed in the SPEC because ACMM,
+# ACMMP and HPM-MVS++ run a photometric pass that is SEEDED from the upsampled
+# coarser level rather than randomly initialised; folding it into
+# `photometric` would lose the distinction that the multi-scale schedule is
+# about (phase-survey § A).
+canonical_passes:
+  photometric:     PatchMatch pass without geometric consistency, randomly initialised.
+  hierarchy:       Photometric pass seeded from the joint-bilateral-upsampled coarser level.
+  prior:           Pass in which a planar / mined prior is built and a further PatchMatch run is issued.
+  geometric:       Pass with geometric consistency against neighbour depth maps.
+  multi_geometric: Geometric pass using the multi-view (multi_geometry) consistency term.
+  mandatory:       Geometric pass with HPM-MVS++'s mandatory-consistency term.
+  init:            First-round initialisation pass of a round-based schedule (APD lineage).
+  refine:          Re-initialisation pass of a later round of a round-based schedule (APD lineage).
+
+# Phase names, from phase-survey.md § B. Dotted names are children of their
+# prefix. `preprocess.*` are emitted by the harness, everything else by the
+# in-fork phase timer (see global_deviations: phase-timer instrumentation).
+canonical_phases:
+  - problem_list
+  - scene_scan
+  - device_init
+  - scale
+  - upsample
+  - confidence_eval
+  - edge_prior
+  - image_pass
+  - input_load
+  - device_upload
+  - prior_build
+  - patchmatch
+  - patchmatch.init
+  - patchmatch.propagate
+  - patchmatch.finalize
+  - patchmatch.readback
+  - result_readback
+  - depthmap_write
+  - depthmap_write.debug
+  - fusion
+  - fusion.load
+  - fusion.consistency
+  - output_write
+  - preprocess.convert
+  - preprocess.mono_depth
+
+
+# --------------------------------------------------------------------------
+# Configurations
+# --------------------------------------------------------------------------
+#
+# Both configurations are run and both are reported; the delta between them is
+# itself a result (param-survey § E.i). Neither configuration changes any
+# method's algorithm — the normalization here is entirely harness-level
+# (converter and neighbour count). Parameter normalization inside the forks is
+# explicitly OUT OF SCOPE for this campaign; see param-survey § E.ii/E.iii for
+# what it would cost.
+
+configurations:
+  author:
+    description: >-
+      Each method as its authors released it, modulo the recorded fork
+      deviations: the fork's own converter (including, for APD-MVS and DPE-MVS,
+      its padding and JPEG re-encoding), the shipped neighbour count (20) and
+      the shipped parameters. Decision D18 / R-EXP-06.
+    converter: own
+    neighbours: 20               # the value every shipped converter computes
+    parameters: shipped
+    debug_output: off            # planned; see global_deviations
+  norm10:
+    description: >-
+      One shared converter for every method, emitting 10 source views per
+      reference (the setting the APD-MVS and DVP-MVS papers state) instead of
+      the shipped 20; shipped parameters otherwise. Padding, if a scene needs
+      it, is applied to every method or to none (R-EXP-09). The author->norm10
+      delta is a reported result; it confounds the converter effect
+      (param-survey § C) with the view-count effect, which the profiled tier
+      separates for ACMM and APD-MVS. Decision D18 / R-EXP-08, R-EXP-10.
+    converter: shared            # colmap2mvsnet_acm_perf
+    neighbours: 10
+    parameters: shipped
+    debug_output: off            # planned; see global_deviations
+
+# --------------------------------------------------------------------------
+# Deviations that apply to every method
+# --------------------------------------------------------------------------
+
+global_deviations:
+  - class: build
+    status: active
+    description: >-
+      Docker toolchain. Base image nvidia/cuda:12.8.1-devel-ubuntu24.04; host
+      and CUDA-host compiler clang-18 (never the distribution gcc); nvcc from
+      /usr/local/cuda-12.8; CMAKE_BUILD_TYPE=Release for every method; Ninja
+      generator. Eigen pinned to 3.4.0. OpenCV pinned to 4.12.0 with
+      opencv_contrib, built static with
+      BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz,
+      WITH_CUDA=ON, WITH_VTK=ON. PCL comes from Ubuntu's libpcl-dev and is
+      linked by HPM-MVS only. None of the eleven methods was released against
+      this toolchain, so no measurement here is a measurement of the authors'
+      binaries.
+    affects: timing,memory,quality
+    reversible: no
+    evidence: benchmark/Dockerfile
+
+  - class: build
+    status: active
+    description: >-
+      CUDA architecture target. Passed to every method build as
+      -DCMAKE_CUDA_ARCHITECTURES=<arch>. The campaign target is 120 (the
+      Blackwell benchmark fleet); the local development GPU is 75. Every
+      published number states which. `deviations verify --arch <arch>
+      --binaries <dir>` checks each built binary with `cuobjdump --list-elf`
+      against the configured value. Upstream's ACMH, ACMM, ACMP, ACMMP, MP-MVS
+      and DPE-MVS created their targets with FindCUDA's `cuda_add_executable`,
+      which ignores CMAKE_CUDA_ARCHITECTURES and CMAKE_CUDA_FLAGS; every fork
+      now builds through enable_language(CUDA) (one `build` commit each, see
+      the forks' logs), so the flag is authoritative everywhere and the binary
+      check is what keeps that claim honest over time.
+    affects: timing,memory,quality
+    reversible: flag -DCMAKE_CUDA_ARCHITECTURES
+    evidence: fork-audit.md § C.1
+
+  - class: build
+    status: active
+    description: >-
+      Common nvcc flags. The ACM lineage ships
+      `-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v` in
+      CUDA_NVCC_FLAGS and the harness keeps them. --use_fast_math changes
+      device floating-point semantics and --maxrregcount=128 is an occupancy
+      control, so both are load-bearing for runtime and for the numbers. They
+      must reach the actual compile path in every fork. The MP-MVS fork had
+      moved them to CMAKE_CUDA_FLAGS while its target was still created with
+      `cuda_add_executable`, so it was compiled with neither (fork-audit.md
+      § B.8 #3c, § C.1); repaired by its `build: build CUDA through the CUDA
+      language` commit, verified on the nvcc command line and with cuobjdump.
+      No MP-MVS number predates the repair.
+    affects: timing,quality
+    reversible: no
+    evidence: fork-audit.md § C.1
+
+  - class: normalization
+    status: active
+    description: >-
+      In the `norm10` configuration one shared converter,
+      `colmap2mvsnet_acm_perf`, replaces the shipped converter of every method
+      and emits 10 source views instead of the shipped 20. View selection is
+      byte-identical in all five shipped variants, so the substitution changes
+      no neighbour ranking; it equalises the image bytes and intrinsics that
+      variants D/E (APD-MVS, DVP-MVS, DPE-MVS) otherwise pad, re-encode and
+      rescale. Applies to `norm10` only; `author` runs each fork's own
+      converter (R-EXP-06). Padding under `norm10` is all-or-none per scene
+      (R-EXP-09).
+    affects: quality,timing
+    reversible: configuration author
+    evidence: param-survey.md § C; decisions D02, D18
+
+  - class: normalization
+    status: planned
+    description: >-
+      Debug artefact output disabled in every configuration behind a single
+      `--no-debug-output` flag shared by all forks, with the upstream
+      behaviour restored as the default. Upstream ships debug output ON in
+      several methods: DPE-MVS's DEBUG_COMPLEX (a full-resolution D2H copy plus
+      a JPEG encode per RunPatchMatch), DPE-MVS's show_medium_result=true
+      (3 JPEGs per image pass plus a PLY every fourth iteration), MP-MVS's four
+      config.yaml switches, and the per-prior-pass triangulation.png of
+      ACMP/ACMMP/MP-MVS/HPM-MVS++. The rewritten forks restore every upstream
+      default (DPE's DEBUG_COMPLEX defined, MP-MVS's four switches at 1); the
+      flag is added to all forks in one pass, and per policy rule 1 both
+      settings are measured in the pilot so the pair is a result, not just a
+      disclosure.
+    affects: timing,io
+    reversible: flag --no-debug-output
+    evidence: fork-audit.md § B.8 #10b, § B.9 #1d, § C.3; phase-survey.md § E.9
+
+  - class: instrumentation
+    status: planned
+    description: >-
+      Phase-timer instrumentation. A single `bench_timer.h` vendored
+      identically into every fork, emitting
+      `PHASE <name> BEGIN|END <monotonic_ns> [k=v ...]` for the canonical_phases
+      above, compiled out byte-identically when BENCH_PHASES=0 and gated at
+      runtime by an environment variable. Every kernel launch in the ten
+      non-CUMVS methods is already followed by cudaDeviceSynchronize, so every
+      canonical phase boundary is a true sync point and no extra
+      synchronisation is introduced; CUMVS has two unsynchronised launches
+      whose cost is attributed to the following phase. Overhead must be
+      measured (instrumented vs BENCH_PHASES=0 build), not assumed.
+    affects: timing
+    reversible: flag BENCH_PHASES=0 at compile time; env var at run time
+    evidence: phase-survey.md § D
+
+
+# --------------------------------------------------------------------------
+# Methods
+# --------------------------------------------------------------------------
+
+methods:
+
+  - name: ACMH
+    path: benchmark/methods/ACMH
+    upstream: https://github.com/GhiXu/ACMH
+    upstream_default_branch: main
+    upstream_base: 7db8c1b21af1dc5990fda066723e87c7e9e59a55
+    provenance: published-reference
+    paper: acmh_acmm.pdf
+    source_subdir: .
+    executable: build/ACMH
+    invocation: ["{executable}", "{dataset_dir}"]
+    converter: colmap2mvsnet_acm.py
+    output_ply: ACMH/ACMH_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      geometric: geometric
+    known_limitations:
+      - >-
+        main.cpp:38 calls cudaSetDevice(1). On a single-GPU host this returns
+        cudaErrorInvalidDevice, the return value is discarded, and the run
+        silently proceeds on device 0. Benign but it makes ACMH's device_init
+        semantics differ from every other method. (Inferred from source; not
+        verified by running.)
+      - >-
+        Built through FindCUDA's cuda_add_executable, so
+        -DCMAKE_CUDA_ARCHITECTURES is ignored and the binary carries nvcc's
+        default architecture rather than the campaign target. Blocking for
+        measurement; see global_deviations.
+      - Two image passes per image (1 photometric + 1 geometric) - the shortest schedule in the set.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: ACMM
+    path: benchmark/methods/ACMM
+    upstream: https://github.com/GhiXu/ACMM
+    upstream_default_branch: master
+    upstream_base: e7f34fa56931e026078e4f11bdf53f54dddc9ccc
+    provenance: published-reference
+    paper: acmh_acmm.pdf
+    source_subdir: .
+    executable: build/ACMM
+    invocation: ["{executable}", "{dataset_dir}"]
+    converter: colmap2mvsnet_acm.py
+    output_ply: ACMM/ACMM_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      hierarchy: hierarchy
+      geom: geometric
+      multi-geometry: multi_geometric
+    known_limitations:
+      - Same FindCUDA / cuda_add_executable architecture defect as ACMH.
+      - >-
+        Reference structure for the whole survey: 3 scale levels x
+        (1 photometric + 2 geometric) = 9 image passes per image, plus 2 joint
+        bilateral upsamplings per image, at max_image_size 3200 and stopping
+        bound 1000.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: ACMP
+    path: benchmark/methods/ACMP
+    upstream: https://github.com/GhiXu/ACMP
+    upstream_default_branch: master
+    upstream_base: 574c8e078b6f7bd93237bd180d46f5adf1169a19
+    provenance: published-reference
+    paper: acmp.pdf
+    source_subdir: .
+    executable: build/ACMP
+    invocation: ["{executable}", "{dataset_dir}"]
+    converter: colmap2mvsnet_acm.py
+    output_ply: ACMP/ACMP_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      planar_prior: prior
+      geom: geometric
+      multi-geometry: multi_geometric
+    known_limitations:
+      - Same FindCUDA / cuda_add_executable architecture defect as ACMH.
+      - >-
+        upstream_base is GhiXu's merge of community PR #4 (rjanvier: size_t
+        formats, an out-of-bounds access, cv::Mat ownership leaks, directory
+        permissions 0777 -> 0755). Those fixes are part of the published
+        reference, not deviations of this fork, but the fork point therefore
+        sits after the paper's release.
+      - >-
+        Writes triangulation.png once per planar-prior pass; that debug write
+        is inside the timed region and is upstream default behaviour.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: ACMMP
+    path: benchmark/methods/ACMMP
+    upstream: https://github.com/GhiXu/ACMMP
+    upstream_default_branch: main
+    upstream_base: 5b4c5fede90c301d37853d3ea8943fd9e93dcce8
+    provenance: published-reference
+    paper: acmmp.pdf
+    source_subdir: .
+    executable: build/ACMMP
+    invocation: ["{executable}", "{dataset_dir}"]
+    converter: colmap2mvsnet_acm.py
+    output_ply: ACMMP/ACMMP_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      hierarchy: hierarchy
+      planar_prior: prior
+      geom: geometric
+      multi-geometry: multi_geometric
+    known_limitations:
+      - Same FindCUDA / cuda_add_executable architecture defect as ACMH.
+      - >-
+        upstream_base sits after community PR #7 (zcc, memory-leak fix), which
+        is part of the published reference.
+      - >-
+        Each prior pass issues RunPatchMatch twice, so 9 image passes per image
+        correspond to 12 PatchMatch invocations.
+      - >-
+        Ships one cudaEvent pair around the JBU kernel only, printing "Total
+        time needed for computation"; that number covers the upsampling kernel,
+        not the run.
+      - >-
+        CMakeLists.txt:8-17 carries a commented-out
+        check_language(CUDA)/enable_language(CUDA) block - the correct fix for
+        the architecture defect, left disabled.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: APD-MVS
+    path: benchmark/methods/APD-MVS
+    upstream: https://github.com/whoiszzj/APD-MVS
+    upstream_default_branch: master
+    upstream_base: 95be7c9bd267969cf11f906367ab56d1f5f85a59
+    provenance: published-reference
+    paper: adp.pdf
+    source_subdir: .
+    executable: build/APD
+    invocation: ["{executable}", "{dataset_dir}"]
+    invocation_optional_args: ["{gpu_index}"]
+    converter: colmap2mvsnet.py
+    output_ply: APD/APD.ply
+    requires_equal_image_sizes: true
+    fork_sha: null
+    passes:
+      FIRST_INIT: init
+      REFINE_INIT: refine
+      REFINE_ITER: geometric
+    known_limitations:
+      - >-
+        Hard requirement, enforced: CheckImages() aborts unless every image in
+        the scene has identical width and height (main.cpp:50-78). Under
+        `author` the fork's own converter pads; under `norm10` the campaign
+        prefers scenes needing no padding, else pads every method (R-EXP-09).
+      - >-
+        Round-based schedule with no top-level scale loop: round_num x 4 image
+        passes per image (16 at 6048 px). No joint bilateral upsampling.
+      - >-
+        show_medium_result defaults to true in main.cpp:135 (the field's
+        default in main.h:96 is false), so three debug JPEGs are written per
+        image pass, inside the timed region.
+      - >-
+        Upstream has 4 later README-only commits; no code drift. Not rebased.
+      - >-
+        MAX_IMAGES = 32 (main.h:31). With 20 neighbours the row length is 21,
+        so the cap holds, but it was not verified that no ETH3D scene produces
+        a longer pair.txt row.
+      - >-
+        Fork commit d3043a3 introduced a red/blue channel swap in the emitted
+        PLY (header reordered, payload not). Geometry and F1 are unaffected;
+        the artefact is wrong. Scheduled to be replaced in the rewrite by a
+        header-rename-only interface commit.
+      - >-
+        CUDA_SEPARABLE_COMPILATION ON was added by the fork and was never
+        requested upstream; it inhibits cross-TU device inlining and changes
+        register allocation.
+    harness_deviations:
+      - class: normalization
+        description: >-
+          norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the
+          scene needs it, then for every method) instead of the fork's own
+          converter, which pads AND re-encodes AND optionally rescales. author
+          runs the fork's own converter.
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: >-
+          Zero-padding of every image to the scene maximum, required by
+          CheckImages(). Applied to this method only, so its input pixels
+          differ from the non-padding methods' - a disclosed asymmetry, not an
+          equalisation.
+        reversible: flag --padding
+        affects: quality,timing
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: HPM-MVS
+    path: benchmark/methods/HPM-MVS
+    upstream: https://github.com/CLinvx/HPM-MVS
+    upstream_default_branch: main
+    upstream_base: a4f951e657c6ba6ded8fdb17bdcd064f6e5fc5cf
+    provenance: published-reference
+    paper: hpm_hpm.pdf
+    source_subdir: HPM-MVS
+    executable: HPM-MVS/build/HPM
+    invocation: ["{executable}", "{dataset_dir}"]
+    converter: ACMM+NESP/windows/colmap2mvsnet_acm.py
+    output_ply: HPM/HPM_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      planar_prior: prior
+      geom: geometric
+      multi-geometry: multi_geometric
+    known_limitations:
+      - >-
+        The only method that links PCL (libpcl-dev), for the KdTreeFLANN
+        6-nearest-neighbour depth supplement.
+      - >-
+        No top-level scale loop: everything runs at 3200 px and the three-level
+        hierarchy lives INSIDE ProcessProblem, so prior_build and patchmatch
+        alternate up to three times within one image pass and prior_build spans
+        must carry level=0|1|2. Per-scale timing tables cannot be filled from
+        the host for this method the way they can for ACMM.
+      - >-
+        The repository contains three trees; only HPM-MVS/HPM-MVS is built.
+        HPM-MVS/ACMM+NESP is a complete but unbuilt Windows ablation tree and
+        must not be mistaken for the measured method.
+      - >-
+        The shipped converter lives in the unbuilt ablation tree, not next to
+        the built sources.
+      - >-
+        Its .gitignore sits at HPM-MVS/.gitignore rather than the repo root.
+      - >-
+        GetDisparity (HPM.cpp:458) is static and has no callers; the fork's
+        point3D index fix is latent-UB only and changes no output.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: HPM-MVS_plusplus
+    path: benchmark/methods/HPM-MVS_plusplus
+    upstream: https://github.com/CLinvx/HPM-MVS_plusplus
+    upstream_default_branch: main
+    upstream_base: 946bebdba367c567a4b64220d4d7e8622cdc3a05
+    provenance: published-reference
+    paper: hpm_plusplus_tpami2026.pdf
+    source_subdir: .
+    executable: build/HPM-MVS_plusplus
+    invocation: ["{executable}", "{dataset_dir}"]
+    invocation_optional_args: ["{use_sky_mask}"]
+    converter: colmap2mvsnet_acm.py
+    output_ply: HPM_MVS_plusplus/HPM_MVS_plusplus.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      hierarchy: hierarchy
+      prior_consistency: prior
+      geom: geometric
+      multi-geometry: multi_geometric
+      mand_consistency: mandatory
+    known_limitations:
+      - >-
+        Known host memory leak: plane_hypotheses_host / costs_host are new[]'d
+        and the delete is commented out (HPM.cpp:563-570). The v0 harness
+        already records "can run into segfault in CUDA because of memory leak,
+        but possible to run with lower scale" (eval.py:115). Memory-phase data
+        from this method must be read with the leak in mind.
+      - >-
+        The most expensive schedule in the set: 18 image passes per image plus
+        12 whole-dataset ConfidenceEvaluation sweeps (main.cpp:782-932), each a
+        pure-host pass that reads and rewrites every .dmb in the scene. Very
+        likely the dominant hidden cost; it has no counterpart in any other
+        method and must be timed as its own top-level phase.
+      - >-
+        Runs cv::Canny on the host inside every ProcessProblem and writes one
+        or two triangulation*.png per prior pass.
+      - >-
+        Optional second argument selects RunFusion_Sky_Strict, which needs
+        external sky-segmentation masks at <dense>/masks/%08d.jpg from an
+        unspecified model. The harness never passes it; sky filtering is off in
+        both configurations.
+      - >-
+        The confidence.dmb filename-casing repair (HPM.cpp:885) is the one fork
+        deviation that changes the numbers a Linux build produces: without it
+        readDepthDmb fails and an uninitialised confidence buffer is uploaded
+        to the device. HPM-MVS++ cannot be run faithfully on Linux without it.
+      - >-
+        A second PLY, HPM_MVS_plusplus/HPM_MVS_plusplus_mask.ply, is produced
+        in mask mode only.
+      - >-
+        Median-filter kernels are defined but never launched.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: MP-MVS
+    path: benchmark/methods/MP-MVS
+    upstream: https://github.com/RongxuanTan/MP-MVS
+    upstream_default_branch: main
+    upstream_base: 17e3c05e9706ce9735e466756492f9967238afff
+    provenance: published-reference
+    paper: mp_mvs.pdf
+    source_subdir: .
+    executable: build/MPMVS
+    invocation: ["{executable}", "{dataset_dir}", "{config}"]
+    config_path: /sota/MP-MVS/config/config.yaml
+    converter: colmap2mvsnet_acm.py
+    output_ply: MP_MVS/MPMVS_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      photometric: photometric
+      planar_prior: prior
+      geom_planar_prior: prior
+      geom: geometric
+    known_limitations:
+      - >-
+        The only method with a config file. It is the optional second argument
+        (`MPMVS <dense_folder> [config_yaml]`); with no second argument the
+        binary reads config/config.yaml relative to the current working
+        directory, so the harness always passes config_path explicitly. Only
+        Input-folder and Output-folder are overridden by the dataset argument;
+        every other parameter of the run comes from that file and must be
+        captured in the run record.
+      - >-
+        The four debug switches in config/config.yaml (Save Dmb as JPG, Save
+        Prior Dmb as JPG, Save Cost Map, Save Normal Map) are ON, as upstream
+        ships them, and are unconditional until the shared --no-debug-output
+        flag lands (see global_deviations). Every run therefore writes a JPEG
+        per depth map, prior, cost map and normal map plus a copy of each depth
+        map under <dense>/MP_MVS/save/, inside the measured region.
+      - >-
+        Upstream's released CMakeLists forces CMAKE_BUILD_TYPE=Debug; the fork
+        removes it and the image builds Release. Correct for a benchmark, but a
+        deviation from the method as released.
+      - >-
+        "Sky segment: 1" in config.yaml is inert. GenerateSkyRegionMask is
+        behind #ifdef BUILD_NCNN and option(USE_NCNN ... OFF), so no ncnn is
+        built and no sky masks are produced. The config advertises a feature
+        the binary does not contain.
+      - >-
+        Multi-scale is inside the kernel loop (PatchMatch.cu:1223-1235) at one
+        fixed resolution and only on the photometric path, so the canonical
+        `scale` phase is N/A on the host for this method. Per-scale rows must
+        be blank, never zero.
+      - >-
+        Output directory is MP_MVS (fork-renamed from upstream's MPMVS); the
+        harness depends on it.
+      - >-
+        Its own Time class (gettimeofday) covers only the two ProcessProblem
+        loops - not config read, pair list, sky filter, fusion or PLY write.
+      - >-
+        Fusion is single-threaded.
+      - >-
+        OpenCVConfig.cmake still calls find_package(CUDA), so FindCUDA and its
+        cuda_add_executable macro remain in scope even though the fork does not
+        use either; CMake warns that policy CMP0146 is unset. Harmless while the
+        target is created with add_executable, but the fork's CMakeLists must
+        not be edited back onto the FindCUDA path.
+    harness_deviations:
+      - class: normalization
+        description: "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own."
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+      - class: interface
+        description: >-
+          The harness supplies the config file location as the second argument
+          ({config} -> config_path). Recorded here because the choice of which
+          config file a run uses lives in the harness, not in the fork, and the
+          parameters in it belong in the run record.
+        reversible: no
+        affects: none
+
+  - name: DPE-MVS
+    path: benchmark/methods/DPE-MVS
+    upstream: https://github.com/M3phist0/DPE-MVS
+    upstream_default_branch: main
+    upstream_base: e1ff7e3db12d83b2b8685beef1055b6de5801505
+    provenance: published-reference
+    paper: dpe.pdf
+    source_subdir: DPE-MVS
+    executable: DPE-MVS/build/DPE
+    invocation: ["{executable}", "{dataset_dir}"]
+    invocation_optional_args: ["{gpu_index}"]
+    converter: DPE-MVS/colmap2mvsnet.py
+    output_ply: DPE/DPE.ply
+    requires_equal_image_sizes: true
+    fork_sha: null
+    passes:
+      FIRST_INIT: init
+      REFINE_INIT: refine
+      REFINE_ITER: geometric
+    known_limitations:
+      - >-
+        Hard requirement, enforced: CheckImages() aborts unless every image has
+        identical width and height. Under `author` the fork's own converter
+        pads; under `norm10` the campaign prefers scenes needing no padding,
+        else pads every method (R-EXP-09).
+      - >-
+        show_medium_result defaults to TRUE (main.h:110) - unlike APD-MVS,
+        where it is false. DPE therefore writes depth_N.jpg, normal_N.jpg and
+        weak_N.jpg per problem per iteration and a point_N.ply every fourth
+        iteration. That is upstream behaviour and stays on by default, but it
+        is a large timing asymmetry against the other methods and belongs under
+        the shared --no-debug-output flag.
+      - >-
+        Upstream ships DEBUG_COMPLEX enabled (DPE.cu:3), copying a
+        full-resolution buffer device->host and encoding complex.jpg on every
+        RunPatchMatch. The fork currently disables it unconditionally, inside a
+        commit titled "drop boost". This must become the flag-selectable
+        normalization; re-enabling it also requires fixing the un-ported
+        path("complex.jpg") at DPE.cu:3156, which no longer compiles.
+      - >-
+        No deep-learning model. "ES" is classical CV computed in-binary
+        (Roberts, union-find, HoughLinesP or adaptive-median Canny).
+      - >-
+        Repository contains an unbuilt "ACM. + ES" tree with three standalone
+        ablation programs (ACMM/ACMP/ACMMP + ES). They are NOT a preprocessing
+        stage for DPE and must not be instrumented.
+      - >-
+        Upstream has 3 later commits (README + 2 PNGs); no code drift. Not
+        rebased.
+      - >-
+        The Dockerfile copies only the DPE-MVS/ subdirectory into the image, so
+        the container does not contain the ablation tree.
+      - >-
+        Published parameter symbols could not be mapped to code; only eta = 4
+        <-> robthr = 4 is plausible (param-survey § F.2).
+      - >-
+        CUDA_SEPARABLE_COMPILATION ON was added by the fork and was never
+        requested upstream.
+    harness_deviations:
+      - class: normalization
+        description: >-
+          norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the
+          scene needs it, then for every method) instead of the fork's own
+          converter, which pads AND re-encodes AND optionally rescales. author
+          runs the fork's own converter.
+        reversible: configuration author
+        affects: quality
+      - class: normalization
+        description: >-
+          Zero-padding of every image to the scene maximum, required by
+          CheckImages().
+        reversible: flag --padding
+        affects: quality,timing
+      - class: normalization
+        description: "norm10: converter emits 10 source views instead of the shipped 20."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+
+  - name: DVP-MVS
+    path: benchmark/methods/DVP-MVS
+    upstream: https://github.com/ZhenlongYuan/DVP-MVS
+    upstream_default_branch: main
+    upstream_base: 5b2b31c02941cfa28808b4e37f06a87e8dc0f2d9
+    provenance: published-reference
+    paper: 2412.11578v1.pdf
+    status: excluded
+    reason: >-
+      Dropped from the measurement campaign: the release does not implement the
+      paper. It requires three input folders nothing in the repository
+      produces - <dense>/dep/*.dmb (Depth-Anything-V2 monocular depth, inverted
+      as 255-dep), <dense>/sfm/*.txt and <dense>/MVS4/*.dmb - with no
+      checkpoint named, no inference script and no documented export
+      convention, so the authors' configuration cannot be reconstructed. Its
+      main loop also stops one round early (main.cpp:450), so the finest scale
+      is never reached and the output is always at least 2x downsampled;
+      CheckImages() is commented out; label_host is left uninitialised on the
+      normal path before being cudaMemcpy'd as int (a latent crash). The fork
+      stays PRISTINE at upstream/main - zero commits after upstream-base - and
+      `deviations verify` enforces that. It is documented in the thesis as an
+      excluded method, not measured.
+    source_subdir: .
+    executable: build/APD
+    invocation: ["{executable}", "{dataset_dir}"]
+    invocation_optional_args: ["{gpu_index}"]
+    converter: colmap2mvsnet.py
+    output_ply: APD/APD.ply
+    requires_equal_image_sizes: null   # CheckImages() is commented out upstream; would have to be determined empirically
+    fork_sha: null
+    passes:
+      FIRST_INIT: init
+      REFINE_INIT: refine
+      REFINE_ITER: geometric
+    known_limitations:
+      - Not built by the Dockerfile and not present in the v0 harness.
+      - >-
+        CMakeLists.txt:9 hardcodes a Windows OpenCV_DIR (E:/opencv-4.2.0/...),
+        depends on Boost.Filesystem (not in the image), targets sm_80 through
+        cuda_add_executable, and requires -std=c++11 under CUDA 12.8/clang-18.
+      - >-
+        main.cpp:31 contains a hardcoded debug condition
+        (ref_image_id == 93 && iteration == 13). Upstream; left as is.
+      - >-
+        Its converter is byte-identical to APD-MVS's (variant D) and still
+        calls np.asscalar, removed in NumPy 1.23.
+      - >-
+        Would need a preprocess.mono_depth phase that no other method needs;
+        the README does not say whether the paper's runtimes include inference.
+    harness_deviations: []
+
+  - name: CUMVS
+    path: benchmark/methods/cuda-multi-view-stereo
+    upstream: https://github.com/fixstars/cuda-multi-view-stereo
+    upstream_default_branch: main
+    upstream_base: 2efda9410ced0806b8f0ee3735cd5f14a6d4c99f
+    provenance: third-party-optimization
+    provenance_note: >-
+      NOT the thesis author's work. An external optimization effort by Fixstars
+      Corporation, cited as prior art that optimization headroom exists in the
+      ACM family. It must never be attributed to the author.
+    paper: null
+    source_subdir: .
+    executable: build/samples/app_patch_match_mvs
+    invocation: ["{executable}", "{dataset_dir}", "--output-directory={output_dir}"]
+    converter: null
+    initializer: build/samples/app_initialize_ETH3D
+    initializer_invocation: ["{initializer}", "{raw_scene_dir}", "--output-directory={dataset_dir}"]
+    output_ply: CUMVS/point_cloud_dense.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    passes:
+      estimateDepth(gc_iter=0): photometric
+      estimateDepth(gc_iter>0): geometric
+    known_limitations:
+      - >-
+        Does not use any colmap2mvsnet converter. Its own C++
+        app_initialize_ETH3D consumes the raw
+        <scene>_dslr_undistorted/<scene> folder, does its own O(N^2) view
+        selection (track-id intersection, 75th-percentile triangulation angle
+        >= 1 degree, top 20) and writes input_images.json, global_poses.json,
+        view_id_sets.json and point_cloud_sparse.ply. Images are not copied;
+        decode and rescale happen inside the main binary. The `norm10`
+        neighbour count therefore reaches CUMVS through --max-neighbors, not
+        through the shared converter.
+      - >-
+        Comparability: --max-image-size defaults to 3200 and --max-neighbors to
+        20. These are the two knobs that must be aligned with the other
+        methods' effective settings, and the alignment lives here in the
+        manifest, not in the fork.
+      - >-
+        Does not fit the per-image I/O model at all: no .dmb round trip, one
+        global input_load, no fusion.load, no prior_build, no
+        patchmatch.finalize. Those phases must be reported N/A, never folded
+        into patchmatch - hiding them would hide the effect being measured.
+      - >-
+        The only method with kernel launches not followed by a synchronise
+        (initializeDepthsAndNormalsKernel, calcInitialCostsKernel), so a small
+        amount of time is attributed to the following phase.
+      - >-
+        Requires OpenCV built with viz (VTK + Qt5) for writeCloud.
+      - >-
+        Upstream has exactly one commit on main; upstream_base coincides with
+        upstream's 1.0.0 tag. The whole fork-vs-upstream diff is 8 added lines.
+      - >-
+        Its README reports ETH3D totals (ACMM 12277.7 s vs CUMVS 2140.4 s) but
+        never states whether app_initialize_ETH3D is included. Inferred to be
+        excluded.
+      - >-
+        The Dockerfile builds CUMVS twice (duplicate block); harmless, to be
+        removed.
+    harness_deviations:
+      - class: interface
+        description: >-
+          Preprocessing is app_initialize_ETH3D rather than the shared
+          converter, because CUMVS consumes a different input format entirely.
+          Both do view selection and both are excluded from the measured
+          region, which is comparable - but it must be stated, not assumed.
+        reversible: no
+        affects: none
+      - class: normalization
+        description: >-
+          "norm10: --max-neighbors=10 passed to app_initialize_ETH3D (the
+          shipped value is 20), the CUMVS-side equivalent of the shared
+          converter's neighbour count."
+        reversible: flag --max-neighbors=20
+        affects: timing,memory,quality
