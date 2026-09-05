@@ -1,0 +1,150 @@
+"""The runner's container path, exercised end to end against a fake docker."""
+
+import json
+import stat
+from pathlib import Path
+
+import pytest
+
+from bench import runner as rn
+from bench import spec as sp
+from bench import store as st
+from deviations import manifest as mf
+
+FAKE_DOCKER = Path(__file__).parent / "fake_docker.py"
+ROOT = mf.repo_root(mf.default_manifest_path().parent)
+
+
+@pytest.fixture
+def fake_docker(tmp_path, monkeypatch):
+    FAKE_DOCKER.chmod(FAKE_DOCKER.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setenv("FAKE_DOCKER_STATE", str(tmp_path / "docker-state"))
+    monkeypatch.setenv("FAKE_DOCKER_OUTPUT_PLY", "ACMM/ACMM_model.ply")
+    return str(FAKE_DOCKER)
+
+
+@pytest.fixture
+def prepared_spec(write_spec, spec_dict, manifest, tmp_path):
+    spec_dict["methods"] = ["ACMM"]
+    spec_dict["widths"] = [3200]
+    spec_dict["repeats"] = 1
+    spec = sp.load(write_spec(spec_dict), manifest)
+    scene = spec.raw_scene_dir("courtyard", 3200)
+    (scene / "images").mkdir(parents=True)
+    (scene / "images" / "one.jpg").write_bytes(b"\xff" * 4096)
+    spec.ground_truth_mlp("courtyard", 3200).parent.mkdir(parents=True, exist_ok=True)
+    spec.ground_truth_mlp("courtyard", 3200).write_text("<MeshLabProject/>")
+    spec.campaign_dir.mkdir(parents=True)
+    return spec
+
+
+def _run_once(spec, manifest, fake_docker):
+    run = sp.expand(spec)[0]
+    entry = sp.method_entry(manifest, run.method)
+    tmp_dir, _ = rn.open_run_dir(spec.campaign_dir, run.key)
+    result = rn.execute(spec, entry, run, tmp_dir, docker=fake_docker)
+    result = rn.collect_point_cloud(spec, entry, run, result, tmp_dir)
+    result = rn.run_evaluation(spec, run, result, tmp_dir, docker=fake_docker)
+    result = rn.discard_intermediates(spec, result)
+    record = st.build_record(
+        spec,
+        manifest,
+        entry,
+        run,
+        result,
+        {"gpu_model": "fake", "image_digest": "sha256:fake", "submodules": []},
+        {"methods": [{"name": entry["name"], "fork_sha": "f" * 40}]},
+        ROOT,
+    )
+    st.write_record(tmp_dir, record)
+    return run, rn.commit_run_dir(tmp_dir), record
+
+
+def test_successful_run_produces_a_complete_record(prepared_spec, manifest, fake_docker):
+    run, final, record = _run_once(prepared_spec, manifest, fake_docker)
+
+    assert record["status"] == "ok"
+    assert record["run_key"] == run.key
+    assert record["wall_time_s"] > 0
+    assert record["preprocess_convert_s"] > 0
+    assert record["container_wall_time_s"] == pytest.approx(12.1, abs=0.01)
+    assert record["f1_primary"] == 0.55
+    assert len(record["quality"]) == 5
+    assert record["point_count"] == 3
+    assert record["point_cloud_sha256"]
+    assert Path(record["point_cloud_path"]).exists()
+    assert record["neighbour_list"]["sha256"]
+    assert record["warm_cache_bytes"] == 4096
+    assert record["sample_interval_ms"] == 100.0
+
+    phases = {p["name"]: p for p in record["phases"]}
+    assert phases["patchmatch"]["total_s"] == 0.8
+    assert phases["preprocess.convert"]["source"] == "harness"
+    assert phases["image_pass"]["source"] == "method"
+    assert record["phases_by_pass"][0]["pass"] == "photometric"
+
+    for name in ("run.json", "phases.txt", "phases.harness.txt", "stdout.log",
+                 "stderr.log", "telemetry.parquet", "eval.stdout.log"):
+        assert (final / name).exists(), name
+    assert "fake method stdout" in (final / "stdout.log").read_text()
+    # R-ART-02: the scratch tree is gone, the store and the cloud are not.
+    assert not Path(record["work_dir"]).exists()
+
+
+def test_failure_is_recorded_as_a_result(prepared_spec, manifest, fake_docker, monkeypatch):
+    monkeypatch.setenv("FAKE_DOCKER_EXIT", "1")
+    monkeypatch.setenv("FAKE_DOCKER_STDERR", "CUDA error: out of memory\n")
+    monkeypatch.setenv("FAKE_DOCKER_OUTPUT_PLY", "")
+
+    _, final, record = _run_once(prepared_spec, manifest, fake_docker)
+    assert record["status"] == "oom_gpu"
+    assert record["exit_code"] == 1
+    assert record["quality"] == []
+    assert record["point_cloud_path"] is None
+    evidence = json.loads(record["status_evidence_json"])
+    assert "cuda error: out of memory" in evidence["log_markers"]
+    assert (final / "run.json").exists()
+
+
+def test_successful_exit_without_a_cloud_is_no_output(
+    prepared_spec, manifest, fake_docker, monkeypatch
+):
+    monkeypatch.setenv("FAKE_DOCKER_OUTPUT_PLY", "")
+    _, _, record = _run_once(prepared_spec, manifest, fake_docker)
+    assert record["status"] == "no_output"
+    assert record["f1_primary"] is None
+
+
+def test_truncated_phase_trace_does_not_break_the_record(
+    prepared_spec, manifest, fake_docker, monkeypatch
+):
+    monkeypatch.setenv("FAKE_DOCKER_NO_PHASES", "1")
+    _, _, record = _run_once(prepared_spec, manifest, fake_docker)
+    assert record["status"] == "ok"
+    assert [p["name"] for p in record["phases"]] == [
+        "preprocess.convert",
+        "preprocess.warm_cache",
+    ]
+    assert record["phase_trace_errors"]
+
+
+def test_stale_scratch_is_moved_aside_not_reused(
+    prepared_spec, manifest, fake_docker
+):
+    run = sp.expand(prepared_spec)[0]
+    stale = prepared_spec.work_dir(run) / "prepared" / "ACMM"
+    stale.mkdir(parents=True)
+    (stale / "ACMM_model.ply").write_text("a stale cloud from an earlier attempt")
+
+    _, _, record = _run_once(prepared_spec, manifest, fake_docker)
+    assert record["point_count"] == 3
+    assert any("stale scratch moved aside" in note for note in record["notes"])
+    aside = list(Path(prepared_spec.paths["work_root"], "unit-test").glob("*.stale"))
+    assert aside and (aside[0] / "prepared" / "ACMM" / "ACMM_model.ply").exists()
+
+
+def test_keep_intermediates_leaves_the_scratch_tree(prepared_spec, manifest, fake_docker):
+    prepared_spec.keep_intermediates = True
+    _, _, record = _run_once(prepared_spec, manifest, fake_docker)
+    assert Path(record["work_dir"]).exists()
+    assert any("intermediates kept" in note for note in record["notes"])

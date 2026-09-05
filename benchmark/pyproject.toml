@@ -12,6 +12,10 @@ dependencies = [
     "opencv-python",
     "pyyaml",
     "tqdm",
+    "duckdb",
+    "psutil",
+    "pyarrow",
+    "nvidia-ml-py",
     "eth3d @ ${PROJECT_ROOT}/eth3d"
 ]
 
@@ -19,7 +23,13 @@ dependencies = [
 eval-cli = "eval.eval:main"
 colmap2mvsnet_acm_perf = "eval.colmap2mvsnet_acm_perf:main"
 deviations = "deviations.cli:main"
+bench = "bench.cli:main"
+
+[dependency-groups]
+dev = ["pytest"]
 
 [tool.uv.build-backend]
-module-name = ["eval", "deviations"]
+module-name = ["eval", "deviations", "bench"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]

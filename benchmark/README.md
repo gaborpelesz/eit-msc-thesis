@@ -72,8 +72,48 @@ every check passes. What it checks:
 `--arch` and `--binaries` are given together; `--binaries` is the directory the
 image builds into (`/sota`).
 
+## Benchmark harness (`bench`)
+
+`bench` executes a campaign to the SPEC: an experiment YAML expands into a run
+list, each run gets one container, a host-side sampler watches it at 100 ms,
+and the result is a directory per run under `results/<campaign>/`:
+
+```
+results/<campaign>/
+  spec.yaml  fingerprint.json  deviations.json
+  <run key>/       run.json telemetry.parquet phases.txt phases.harness.txt
+                   stdout.log stderr.log convert.*.log eval.*.log
+  <run key>.tmp/   in flight
+```
+
+A run key is `<method>__<scene>__w<width>__<config>__r<repeat>`. A run is
+finished when `run.json` exists; the directory is renamed into place only then.
+**Nothing in the store is ever deleted or overwritten**: an interrupted attempt
+becomes `<key>.tmp.<timestamp>.aborted` and a re-run moves the old record to
+`<key>.<timestamp>.superseded`. Only bare run-key directories are queried.
+
+```bash
+bench plan   experiments/pilot-a.yaml [--pilot results/pilot-a]
+bench run    experiments/pilot-a.yaml [--only KEY ...] [--dry-run] [--rerun]
+bench fingerprint --image sota-deps:latest
+bench status results/pilot-a --spec experiments/pilot-a.yaml
+bench query  results/pilot-a [--report wall|memory|quality|status] [--sql SQL]
+bench phases results/pilot-a/<run key>
+```
+
+`bench run` refuses to start when `deviations verify` fails (R-ENV-01), when the
+benchmark GPU has unlocked clocks, persistence mode off or a display attached
+(R-ENV-02), or when the campaign's `fingerprint.json` was written on a machine
+with a different GPU model, driver, CUDA version or image digest (R-ENV-06).
+The first SIGINT pauses after the run in flight has been recorded; the second
+aborts it.
+
+`--dry-run` prints the exact docker commands and executes nothing.
+
 ## Layout
 
 - [ETH3D dataset downloader](./eth3d)
-- evaluation: `src/eval/eval.py`
+- benchmark harness: `src/bench/`, experiment specs in `experiments/`
+- evaluation (v0, superseded by `bench`): `src/eval/eval.py`
 - deviation manifest and verifier: `methods/methods.yaml`, `src/deviations/`
+- tests: `tests/` (`uv run pytest`; no GPU or docker needed)

@@ -1,0 +1,45 @@
+# Pilot A -- the sizing gate of decision D18: every method once, one scene,
+# 3200 wide, `author` configuration. Its wall times feed `bench plan --pilot`,
+# which projects the campaign and decides whether the two-configuration matrix
+# fits the fleet budget.
+#
+# Not a thesis measurement: one repeat cannot support a claim about a
+# randomized algorithm (R-STA-01, CLAUDE.md "Measurement integrity").
+
+version: 1
+campaign: pilot-a
+image: sota-deps:latest
+
+methods:
+  - ACMH
+  - ACMM
+  - ACMP
+  - ACMMP
+  - APD-MVS
+  - HPM-MVS
+  - HPM-MVS_plusplus
+  - MP-MVS
+  - DPE-MVS
+  - CUMVS
+scenes: [delivery_area]   # D20: Pilot A and B scene; campaign set is delivery_area, kicker, office, relief, pipes
+widths: [3200]
+configurations: [author]
+repeats: 1
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+evaluator_sha: null
+
+# R-EXP-03: leave empty to bind the campaign to the first machine that starts
+# it, or fill in to refuse any other machine up front.
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d  # holds <scene>_<width>/ as `python -m eth3d --width` writes it
+  results_root: /data/bench/results   # local disk; the rename in R-RUN-03 must be atomic
+  work_root: /data/bench/work         # scratch; the only place the harness deletes anything
+  artifacts_root: /data/bench/clouds  # point clouds, outside the results repository (R-ART-03)
