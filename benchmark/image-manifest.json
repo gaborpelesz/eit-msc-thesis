@@ -1,0 +1,169 @@
+{
+  "dockerfile": {
+    "path": "benchmark/Dockerfile",
+    "sha256": "c6556ccc45bb1fef9885da71aa635f25cace3ec2aa4c2279fd2bf7bc1a8dd26d"
+  },
+  "evaluator": {
+    "path": "benchmark/eth3d/multi-view-evaluation",
+    "sha": "0daa4f4de036d47d37a6ba054c51fd66642ef896"
+  },
+  "generated_at": "2026-09-05T23:24:02.739763+00:00",
+  "methods": [
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/ACMH/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "048d479cb2a778caac2adfdb4acf260c9279af74",
+      "name": "ACMH",
+      "path": "benchmark/methods/ACMH",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/ACMM/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "8ec132477725181bed29273f053f3b66aa8b20a9",
+      "name": "ACMM",
+      "path": "benchmark/methods/ACMM",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/ACMMP/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "aa6e3cf0f440eed1b881de8917d80784d0a12c8b",
+      "name": "ACMMP",
+      "path": "benchmark/methods/ACMMP",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/ACMP/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "0837cc664ad749bd47a7414007411d22cc7715ba",
+      "name": "ACMP",
+      "path": "benchmark/methods/ACMP",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/APD-MVS/colmap2mvsnet.py",
+        "sha256": "cf7afa6a26de4bf828b49d7725a3182747299e449fb1426a584e1071feba3e80"
+      },
+      "dirty": false,
+      "fork_sha": "b105b0b202d81ea2f50f9033196c6ddc93ff8982",
+      "name": "APD-MVS",
+      "path": "benchmark/methods/APD-MVS",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "initializer_source",
+        "path": "benchmark/methods/cuda-multi-view-stereo/samples/app_initialize_ETH3D.cpp",
+        "sha256": "ada96ff4d1444d348af6ad2100a92293cfb804778e269b3c889cc3f9cc828c21"
+      },
+      "dirty": false,
+      "fork_sha": "cff89eb6c74cf37f05d5ea6aade55cc68e590007",
+      "name": "CUMVS",
+      "path": "benchmark/methods/cuda-multi-view-stereo",
+      "provenance": "third-party-optimization",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/DPE-MVS/DPE-MVS/colmap2mvsnet.py",
+        "sha256": "cf7afa6a26de4bf828b49d7725a3182747299e449fb1426a584e1071feba3e80"
+      },
+      "dirty": false,
+      "fork_sha": "5f5a8bacfc912acac42a62c020e3269079ea3be2",
+      "name": "DPE-MVS",
+      "path": "benchmark/methods/DPE-MVS",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/DVP-MVS/colmap2mvsnet.py",
+        "sha256": "c881ef6ec54353b710e6143500e01efd33469366317466e296ceb02694ff5abf"
+      },
+      "dirty": false,
+      "fork_sha": "5b2b31c02941cfa28808b4e37f06a87e8dc0f2d9",
+      "name": "DVP-MVS",
+      "path": "benchmark/methods/DVP-MVS",
+      "provenance": "published-reference",
+      "status": "excluded"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/HPM-MVS/ACMM+NESP/windows/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "190d36ac3a71e473d87e3113c0f063cafa6e680d",
+      "name": "HPM-MVS",
+      "path": "benchmark/methods/HPM-MVS",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/HPM-MVS_plusplus/colmap2mvsnet_acm.py",
+        "sha256": "59d61b83ceeb3cf6e28987325c8458451ecaf685869e4fed7a31ac88ce80c93b"
+      },
+      "dirty": false,
+      "fork_sha": "1ad8aa7cd887e2d0e5fa44cedf80768a807fabf9",
+      "name": "HPM-MVS_plusplus",
+      "path": "benchmark/methods/HPM-MVS_plusplus",
+      "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/MP-MVS/colmap2mvsnet_acm.py",
+        "sha256": "fbb8f8081be605c4f0c1628645ccd50db8691de5f1d7128ee1f3cea7e986d059"
+      },
+      "dirty": false,
+      "fork_sha": "0f792f27241498cb5d5fdaa3055f8c9bdc4301e8",
+      "name": "MP-MVS",
+      "path": "benchmark/methods/MP-MVS",
+      "provenance": "published-reference",
+      "status": "active"
+    }
+  ],
+  "pyproject": {
+    "path": "benchmark/pyproject.toml",
+    "sha256": "9a1b12a0176710de0996049df2731c9dee8d74ada568ef46964a87ff761fc201"
+  },
+  "schema_version": 1,
+  "shared_converter": {
+    "path": "benchmark/src/eval/colmap2mvsnet_acm_perf.py",
+    "sha256": "99e821f65ba3d3657261e7ae19d3c1499479b483001bb98f6828890dc301bc13"
+  },
+  "uv_lock": {
+    "path": "benchmark/uv.lock",
+    "sha256": "a22e1e51a864f938cf385def3069e16f409e6e2d7bb28ea1366ffb3255195741"
+  }
+}
