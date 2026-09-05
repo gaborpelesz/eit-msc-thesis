@@ -45,6 +45,14 @@ papers:
     title: Hierarchical Prior Mining for Non-local Multi-View Stereo
     arxiv: 2303.09758v1
     version: preprint
+    methods: [HPM-MVS]
+
+  - file: hpm_plusplus_tpami2026.pdf
+    title: A Hierarchical Prior Mining Approach for Non-Local Multi-View Stereo
+    authors: Jiaqi Yang, Yanan He, Chunlin Ren, Qingshan Xu, Siwen Quan, Xiyu Zhang, Yanning Zhang
+    venue: IEEE TPAMI 48(5), May 2026
+    doi: 10.1109/TPAMI.2026.3652616
+    version: publisher
     methods: [HPM-MVS, HPM-MVS_plusplus]
 
   - file: mp_mvs.pdf
