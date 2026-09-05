@@ -1,7 +1,7 @@
 """
 Run like:
 
-streamlit run visualize_db.py -- --db evaluation/evaluation.db --fields dataset tolerance
+streamlit run visualize_db.py -- --db evaluation/evaluation.db --fields dataset width tolerance
 
 """
 

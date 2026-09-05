@@ -8,6 +8,7 @@ from pathlib import Path
 
 try:
     from eth3d import prepare_datasets, ETH3D_DATASETS_TRAINING, ETH3D_DATASETS_TEST  # type: ignore
+    from eth3d.colmapio import read_cameras_text  # type: ignore
 except ImportError:
     print("Error: eth3d module not found. Please ensure it is installed correctly.")
     sys.exit(1)
@@ -127,9 +128,28 @@ methods = [
 ]
 
 
+def dataset_image_width(dataset_dir: str, dataset: str) -> int:
+    """Image width in pixels that the methods are actually run at.
+
+    Rescaling rewrites cameras.txt, so the calibration -- not the --width
+    argument -- is what a run was measured at: --width is absent for native-
+    resolution runs, and native width differs between ETH3D scenes.
+    """
+    cameras = read_cameras_text(
+        os.path.join(
+            dataset_dir,
+            f"{dataset}_dslr_undistorted/{dataset}/dslr_calibration_undistorted/cameras.txt",
+        )
+    )
+    # Padding methods pad every image up to the scene maximum, so the maximum is
+    # the width fed to the method regardless of per-camera differences.
+    return max(cam.width for cam in cameras.values())
+
+
 class EvaluationResult:
     dataset: str
     method: str
+    width: int
     time: float
     tolerances: list[float]
     accuracies: list[float]
@@ -137,10 +157,19 @@ class EvaluationResult:
     f1_scores: list[float]
 
     def __init__(
-        self, dataset, method, time, tolerances, accuracies, completenesses, f1_scores
+        self,
+        dataset,
+        method,
+        width,
+        time,
+        tolerances,
+        accuracies,
+        completenesses,
+        f1_scores,
     ):
         self.dataset = dataset
         self.method = method
+        self.width = width
         self.time = time
         self.tolerances = tolerances
         self.accuracies = accuracies
@@ -152,6 +181,7 @@ class EvaluationResult:
             f"\n{'=' * 50}",
             f"Dataset: {self.dataset}",
             f"Method: {self.method}",
+            f"Width: {self.width}",
             f"Runtime: {self.time:.2f} seconds",
             f"{'=' * 50}",
             "\nMetrics:",
@@ -182,6 +212,7 @@ class EvaluationResult:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     dataset TEXT,
                     method TEXT,
+                    width INTEGER,
                     time REAL,
                     tolerance REAL,
                     accuracy REAL,
@@ -192,21 +223,29 @@ class EvaluationResult:
             """
             )
 
+            # Databases written before width was recorded keep their rows, with
+            # width NULL: the resolution of those runs is genuinely unknown and
+            # must not be back-filled with a guess.
+            columns = {row[1] for row in cursor.execute("PRAGMA table_info(evaluation_results)")}
+            if "width" not in columns:
+                cursor.execute("ALTER TABLE evaluation_results ADD COLUMN width INTEGER")
+
             # Insert the results
             for i in range(len(self.tolerances)):
                 cursor.execute(
                     """
                     INSERT INTO evaluation_results (
-                        dataset, method, time,
+                        dataset, method, width, time,
                         tolerance,
                         accuracy,
                         completeness,
                         f1_score
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         self.dataset,
                         self.method,
+                        self.width,
                         self.time,
                         self.tolerances[i],
                         self.accuracies[i],
@@ -292,6 +331,7 @@ def main():
         dataset_dir = os.path.join(args.output, "datasets", dataset)
         if args.width:
             dataset_dir += f"_{args.width}"
+        width = dataset_image_width(dataset_dir, dataset)
         for method in selected_methods:
             method.prepare(dataset_dir, dataset)
 
@@ -338,6 +378,7 @@ def main():
             result = EvaluationResult(
                 dataset,
                 method.name,
+                width,
                 method_time,
                 tolerances,
                 accuracies,
