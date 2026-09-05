@@ -384,7 +384,15 @@ def main(argv=None):
 
     run = subparsers.add_parser("run", help="execute the campaign")
     run.add_argument("spec")
-    run.add_argument("--only", nargs="+", help="execute only these run keys")
+    # `extend`, not the default `store`: a repeated --only otherwise replaces
+    # the earlier one, silently narrowing the campaign to the last flag.
+    run.add_argument(
+        "--only",
+        nargs="+",
+        action="extend",
+        default=[],
+        help="execute only these run keys (repeatable)",
+    )
     run.add_argument("--dry-run", action="store_true", help="print the exact docker commands")
     run.add_argument(
         "--rerun",

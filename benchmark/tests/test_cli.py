@@ -22,6 +22,17 @@ def test_dry_run_prints_commands_and_writes_nothing(write_spec, spec_dict, capsy
     assert not (tmp_path / "work").exists()
 
 
+def test_repeated_only_flags_accumulate(write_spec, spec_dict, capsys):
+    """argparse's default `store` would keep the last flag only, and a campaign
+    would silently execute fewer runs than the operator asked for."""
+    keys = ["ACMM__courtyard__w3200__author__r1", "ACMH__courtyard__w3200__author__r1"]
+    path = write_spec(spec_dict)
+    assert cli.main(["run", str(path), "--dry-run", "--only", keys[0], "--only", keys[1]]) == 0
+    out = capsys.readouterr().out
+    assert keys[0] in out and keys[1] in out
+    assert "2 runs planned" in out
+
+
 def test_dry_run_with_an_unknown_key_fails(write_spec, spec_dict):
     assert cli.main(["run", str(write_spec(spec_dict)), "--dry-run", "--only", "nope"]) == 2
 
