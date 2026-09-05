@@ -1,4 +1,6 @@
 import json
+import os
+import socket
 
 from bench import runner as rn
 from bench import sampler as smp
@@ -215,3 +217,24 @@ def test_status_report_counts_in_flight_and_remaining(write_spec, spec_dict, man
     assert report["in_flight"][0]["run_key"] == runs[1].key
     assert report["in_flight"][0]["hostname"]
     assert len(report["remaining"]) == len(runs) - 1
+
+
+def test_status_says_whether_an_in_flight_run_is_still_alive(tmp_path):
+    """A `.tmp` left by a crash looks exactly like a run in flight (the first
+    real campaign left one for four minutes), so the report says which."""
+    campaign = tmp_path / "campaign"
+    for key, marker in (
+        ("A__s__w1__author__r1", f"{socket.gethostname()} pid={os.getpid()}"),
+        ("B__s__w1__author__r1", f"{socket.gethostname()} pid=999999999"),
+        ("C__s__w1__author__r1", "another-host pid=17"),
+    ):
+        directory = campaign / f"{key}.tmp"
+        directory.mkdir(parents=True)
+        (directory / "host.txt").write_text(marker + "\n")
+
+    alive = {row["run_key"]: row["alive"] for row in st.status_report(campaign)["in_flight"]}
+    assert alive == {
+        "A__s__w1__author__r1": True,
+        "B__s__w1__author__r1": False,
+        "C__s__w1__author__r1": None,
+    }

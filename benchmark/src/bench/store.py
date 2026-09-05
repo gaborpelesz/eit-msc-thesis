@@ -411,6 +411,7 @@ def status_report(campaign_dir, runs=None):
                 "run_key": directory.name[: -len(".tmp")],
                 "elapsed_s": (datetime.now(timezone.utc) - started).total_seconds(),
                 "hostname": host,
+                "alive": marker_is_alive(host),
             }
         )
     report = {
@@ -423,6 +424,25 @@ def status_report(campaign_dir, runs=None):
         report["remaining"] = [r.key for r in runs if r.key not in finished]
         report["planned"] = len(runs)
     return report
+
+
+def marker_is_alive(marker):
+    """Is the process that wrote this `host.txt` still running?
+
+    True/False only when the marker names this host, because a pid means
+    nothing on another one; None otherwise. A `.tmp` whose writer is gone is
+    the residue of a crash or a kill, and R-OBS-01 is useless if it cannot be
+    told apart from a run in flight. Pid reuse can say True for a stranger; the
+    marker keeps the pid so the operator can check.
+    """
+    if not marker:
+        return None
+    host, _, tail = marker.partition(" pid=")
+    if host.strip() != socket.gethostname() or not tail.strip().isdigit():
+        return None
+    import psutil
+
+    return psutil.pid_exists(int(tail.strip()))
 
 
 def connect(campaign_dir):
