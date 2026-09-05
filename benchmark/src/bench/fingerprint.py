@@ -436,23 +436,40 @@ def expected_clock_mhz(evidence):
     return _mhz(clocks.get("clocks.applications.graphics"))
 
 
+# D24.2. `-lgc <v>,<v>` is a request the hardware can still miss for a few
+# samples (CUMVS dipped to 1635 MHz for ~7 of 120 samples in a 12 s run), so a
+# strict "every sample at the locked value" verdict would be false for nearly
+# every run of a multi-hour campaign and could exclude nothing. The duty cycle
+# is what analysis uses; `held` is a convenience flag over it.
+CLOCK_TOLERANCE_FRACTION = 0.01
+CLOCK_HELD_MIN_FRACTION = 0.95
+
+
 def clock_hold(values, expected_mhz, method=None):
     """R-ENV-02 after the fact: did the SM clock hold for the whole run?
 
-    A run whose clock did not hold is still a run -- it is recorded with
-    `held: false` so that a query can exclude it, never discarded or retried.
+    `fraction_at_expected` is the share of 100 ms samples within +-1 % of the
+    clock the pre-run gate established, and `held` is that fraction against the
+    D24.2 threshold. A run whose clock did not hold is still a run -- it is
+    recorded with `held: false` so that a query can exclude it, never discarded
+    or retried.
     """
     readings = [int(v) for v in values if v is not None]
     low = min(readings) if readings else None
     high = max(readings) if readings else None
+    fraction = None
     held = None
     if expected_mhz is not None and readings:
-        held = low == expected_mhz and high == expected_mhz
+        tolerance = abs(expected_mhz) * CLOCK_TOLERANCE_FRACTION
+        at_expected = sum(1 for v in readings if abs(v - expected_mhz) <= tolerance)
+        fraction = at_expected / len(readings)
+        held = fraction >= CLOCK_HELD_MIN_FRACTION
     return {
         "expected_mhz": expected_mhz,
         "min_mhz": low,
         "max_mhz": high,
         "samples": len(readings),
+        "fraction_at_expected": fraction,
         "held": held,
         "method": method,
     }

@@ -270,6 +270,7 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
             "min_mhz": None,
             "max_mhz": None,
             "samples": 0,
+            "fraction_at_expected": None,
             "held": None,
             "method": None,
         },

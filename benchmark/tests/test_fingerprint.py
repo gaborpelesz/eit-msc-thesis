@@ -204,6 +204,7 @@ def test_clock_hold_is_true_when_every_sample_sits_at_the_expected_clock():
         "min_mhz": 1800,
         "max_mhz": 1800,
         "samples": 50,
+        "fraction_at_expected": 1.0,
         "held": True,
         "method": "x",
     }
@@ -212,12 +213,40 @@ def test_clock_hold_is_true_when_every_sample_sits_at_the_expected_clock():
 def test_clock_hold_is_false_when_the_clock_left_the_lock():
     hold = fp.clock_hold_from_table(_telemetry_table([1800] * 40 + [1500] * 10), 1800)
     assert hold["held"] is False
+    assert hold["fraction_at_expected"] == 0.8
     assert (hold["min_mhz"], hold["max_mhz"]) == (1500, 1800)
+
+
+def test_clock_hold_reports_the_duty_cycle_of_a_short_dip():
+    # The smoke campaign's CUMVS run: ~7 of ~120 samples off the lock. At the
+    # D24.2 threshold that is 0.942 and still `held: false`, which is what the
+    # threshold is for -- the fraction is the number analysis uses.
+    hold = fp.clock_hold_from_table(_telemetry_table([1800] * 113 + [1635] * 7), 1800)
+    assert hold["fraction_at_expected"] == 113 / 120
+    assert hold["held"] is False
+    assert (hold["min_mhz"], hold["max_mhz"]) == (1635, 1800)
+    # The same dip in a run twice as long is a hold: 0.971.
+    longer = fp.clock_hold([1800] * 233 + [1635] * 7, 1800)
+    assert longer["held"] is True
+
+
+def test_clock_hold_counts_a_sample_within_one_percent_as_at_the_expected_clock():
+    # 1785 MHz is 0.83 % below 1800; 1770 MHz is 1.67 % below it.
+    assert fp.clock_hold([1785] * 10, 1800)["fraction_at_expected"] == 1.0
+    assert fp.clock_hold([1770] * 10, 1800)["fraction_at_expected"] == 0.0
+
+
+def test_clock_hold_threshold_is_the_documented_one():
+    assert fp.CLOCK_HELD_MIN_FRACTION == 0.95
+    assert fp.CLOCK_TOLERANCE_FRACTION == 0.01
+    assert fp.clock_hold([1800] * 95 + [1500] * 5, 1800)["held"] is True
+    assert fp.clock_hold([1800] * 94 + [1500] * 6, 1800)["held"] is False
 
 
 def test_clock_hold_is_unverified_without_an_expected_clock():
     hold = fp.clock_hold_from_table(_telemetry_table([1800, 1800]), None)
     assert hold["held"] is None
+    assert hold["fraction_at_expected"] is None
     assert hold["min_mhz"] == 1800
 
 
@@ -230,6 +259,7 @@ def test_clock_hold_tolerates_a_telemetry_table_without_the_column():
         "min_mhz": None,
         "max_mhz": None,
         "samples": 0,
+        "fraction_at_expected": None,
         "held": None,
         "method": None,
     }

@@ -575,8 +575,10 @@ def execute(
     if hold["held"] is False:
         result.setdefault("warnings", []).append(
             f"the SM clock did not hold {hold['expected_mhz']} MHz during this run "
-            f"(observed {hold['min_mhz']}-{hold['max_mhz']} MHz over {hold['samples']} "
-            "samples); the run is recorded, and comparisons should exclude it (R-ENV-02)"
+            f"({hold['fraction_at_expected']:.3f} of {hold['samples']} samples within "
+            f"1%, below {fpr.CLOCK_HELD_MIN_FRACTION}; observed {hold['min_mhz']}-"
+            f"{hold['max_mhz']} MHz); the run is recorded, and comparisons should "
+            "exclude it (R-ENV-02, D24)"
         )
     elif hold["held"] is None:
         result.setdefault("warnings", []).append(
