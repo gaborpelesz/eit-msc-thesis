@@ -2,6 +2,7 @@
 
     bench plan   <spec.yaml> [--pilot DIR|FILE]
     bench run    <spec.yaml> [--only KEY] [--dry-run] [--rerun]
+    bench image-manifest [--out benchmark/image-manifest.json]
     bench fingerprint [--image TAG]
     bench status <campaign_dir> [--spec spec.yaml]
     bench query  <campaign_dir> [--sql SQL | --report NAME]
@@ -20,6 +21,7 @@ from deviations import verify as vf
 
 from . import evaluate as ev
 from . import fingerprint as fp
+from . import image_manifest as imf
 from . import phases as ph
 from . import runner as rn
 from . import spec as sp
@@ -97,6 +99,52 @@ def cmd_fingerprint(args):
     for problem in problems:
         print(f"  NOT READY: {problem}", file=sys.stderr)
     return 1 if problems else 0
+
+
+def cmd_image_manifest(args):
+    manifest_path = Path(args.manifest)
+    root = mf.repo_root(manifest_path.parent)
+    document = imf.compute(root, mf.load(manifest_path))
+    out = Path(args.out) if args.out else manifest_path.parents[1] / imf.DEFAULT_MANIFEST_NAME
+    text = imf.write(out, document)
+    print(text, end="")
+    print(f"wrote {out} (sha256 of the comparable part: {imf.digest(document)})", file=sys.stderr)
+    return 0
+
+
+def check_image_manifest(spec, fingerprint, manifest, root):
+    """D24.1: the image must have been built from this working tree.
+
+    Returns a list of problems. The image carries no `.git`, so without this
+    check a record's fork SHAs, `deviations.json` and converter hashes -- all
+    read from the working tree -- can name code the image does not contain.
+    """
+    image_document = fingerprint.get("image_manifest")
+    print(
+        f"image    {spec.image} id={fingerprint.get('image_id')} "
+        f"manifest={fingerprint.get('image_manifest_sha256')}",
+        flush=True,
+    )
+    if not image_document:
+        return [
+            f"{spec.image} carries no {imf.CONTAINER_PATH}: it was built before the "
+            "build manifest existed, or without one. Run `uv run bench image-manifest` "
+            "and rebuild the image (D24.1)."
+        ]
+    differences = imf.compare(image_document, imf.compute(root, manifest))
+    if not differences:
+        print("manifest ok  the image was built from this working tree", flush=True)
+        return []
+    lines = [
+        f"{spec.image} was not built from this working tree; a run record would name "
+        f"code the image does not contain ({len(differences)} differing keys, D24.1):"
+    ]
+    lines += [f"  {d['key']}: image={d['image']!r} working={d['working']!r}" for d in differences]
+    lines.append(
+        "Run `uv run bench image-manifest` and rebuild the image, or check out the "
+        "tree the image was built from."
+    )
+    return lines
 
 
 def cmd_status(args):
@@ -220,6 +268,15 @@ def cmd_run(args):
         return 1
 
     fingerprint = fp.collect(spec.image, gpu_index=spec.gpu_index, repo_root=root)
+
+    # D24.1: bind the image to the code the records will claim, before a
+    # campaign directory exists.
+    problems = check_image_manifest(spec, fingerprint, manifest, root)
+    if problems:
+        for line in problems:
+            print(line, file=sys.stderr)
+        return 1
+
     deviations = st.deviations_document(manifest, root)
     try:
         # R-ENV-06 / R-RES-04: a campaign is bound to one machine.
@@ -344,6 +401,15 @@ def main(argv=None):
     fingerprint.add_argument("--no-probe", action="store_true", help="do not start a container")
     _add_manifest(fingerprint)
     fingerprint.set_defaults(func=cmd_fingerprint)
+
+    image_manifest = subparsers.add_parser(
+        "image-manifest", help="write the build manifest `docker build` must copy in"
+    )
+    image_manifest.add_argument(
+        "--out", help="output path (default: benchmark/image-manifest.json)"
+    )
+    _add_manifest(image_manifest)
+    image_manifest.set_defaults(func=cmd_image_manifest)
 
     status = subparsers.add_parser("status", help="counts by status, in flight, remaining")
     status.add_argument("campaign_dir")

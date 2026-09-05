@@ -132,6 +132,26 @@ def probe_image_toolchain(image, docker="docker"):
     return result
 
 
+def read_image_manifest(image, docker="docker", path=None):
+    """The build manifest the image carries, or None when it has none (D24.1).
+
+    An image without one predates the manifest gate and cannot be shown to
+    contain the code the record would name, so `bench run` refuses it.
+    """
+    from . import image_manifest as imf
+
+    out = _run(
+        [docker, "run", "--rm", "--entrypoint", "cat", image, path or imf.CONTAINER_PATH],
+        timeout=180,
+    )
+    if not out:
+        return None
+    try:
+        return json.loads(out)
+    except json.JSONDecodeError:
+        return None
+
+
 def submodule_shas(repo_root):
     """Every submodule path in the superproject's .gitmodules -> its HEAD.
 
@@ -188,9 +208,13 @@ def collect(image, gpu_index=0, repo_root=None, docker="docker", probe_image=Tru
         "kernel": platform.release(),
         "python": platform.python_version(),
     }
+    from . import image_manifest as imf
+
     fp.update(image_identity(image, docker=docker))
     fp["toolchain"] = probe_image_toolchain(image, docker=docker) if probe_image else None
     fp["submodules"] = submodule_shas(repo_root) if repo_root else []
+    fp["image_manifest"] = read_image_manifest(image, docker=docker) if probe_image else None
+    fp["image_manifest_sha256"] = imf.digest(fp["image_manifest"])
     return fp
 
 

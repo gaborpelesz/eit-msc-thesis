@@ -1,3 +1,13 @@
+# The batch image: the ten campaign forks, the shared converter and the ETH3D
+# evaluator, built for one CUDA architecture.
+#
+# `uv run bench image-manifest` MUST be run in benchmark/ before `docker build`.
+# It writes image-manifest.json (fork SHAs, converter hashes, this file's hash)
+# from the working tree; the build copies it to /sota/image-manifest.json and
+# `bench run` refuses to start when the image's copy differs from a freshly
+# computed one, because a run record's fork SHAs and converter hashes are read
+# from the working tree and would otherwise name code the image never contained
+# (D24.1). A missing image-manifest.json fails this build at the final COPY.
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -235,5 +245,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
 
 ENV SOTA_MVS_METHOD_ROOT /sota
+
+# Last, so that regenerating the manifest invalidates nothing above it. The
+# build fails here if `bench image-manifest` was not run first.
+COPY image-manifest.json /sota/image-manifest.json
 
 ENTRYPOINT [ "bash" ]

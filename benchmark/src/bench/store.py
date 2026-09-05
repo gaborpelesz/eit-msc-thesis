@@ -320,6 +320,10 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         "fingerprint": fingerprint,
         "image": spec.image,
         "image_digest": fingerprint.get("image_digest"),
+        # D24.1: the image's own build manifest, which `bench run` checked
+        # against the working tree before the campaign started. The manifest
+        # itself is in `fingerprint.image_manifest`.
+        "image_manifest_sha256": fingerprint.get("image_manifest_sha256"),
         "gpu_index": spec.gpu_index,
         "hostname": socket.gethostname(),
         "spec_sha256": spec.sha256,
