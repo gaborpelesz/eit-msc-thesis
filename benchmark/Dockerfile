@@ -178,9 +178,14 @@ RUN cd /sota/DPE-MVS \
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# ETH3D evaluator, upstream ETH3D/multi-view-evaluation pinned by the submodule;
+# the patch only lifts the C++ standard and the PCL version floor so it builds
+# with clang-18 / PCL 1.14 (no change to what is computed).
 WORKDIR /multi-view-evaluation
 ADD eth3d/multi-view-evaluation /multi-view-evaluation
-RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+COPY eth3d/multi-view-evaluation-compat.patch /tmp/mve-compat.patch
+RUN git apply /tmp/mve-compat.patch \
+    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
     && cmake --build build \

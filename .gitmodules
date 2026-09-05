@@ -37,3 +37,6 @@
 [submodule "obsidian"]
 	path = resources/obsidian
 	url = https://github.com/gaborpelesz/eit-msc-thesis-obsidian.git
+[submodule "benchmark/eth3d/multi-view-evaluation"]
+	path = benchmark/eth3d/multi-view-evaluation
+	url = https://github.com/ETH3D/multi-view-evaluation.git

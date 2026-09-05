@@ -7,8 +7,8 @@
 # randomized algorithm (R-STA-01, CLAUDE.md "Measurement integrity").
 
 version: 1
-campaign: pilot-a
-image: sota-deps:latest
+campaign: pilot-a-dev
+image: mvs-bench:sm75          # dev-machine image (RTX 2080 Ti); the fleet image is CUDA_ARCH=120
 
 methods:
   - ACMH
@@ -32,7 +32,7 @@ primary_tolerance: 0.02
 tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
 
 # The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
-evaluator_sha: null
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896   # benchmark/eth3d/multi-view-evaluation submodule
 
 # R-EXP-03: leave empty to bind the campaign to the first machine that starts
 # it, or fill in to refuse any other machine up front.
