@@ -233,7 +233,7 @@ def cmd_run(args):
     for run in runs:
         if _interrupted():
             return 130
-        if st.is_finished(spec.campaign_dir, run.key) and not args.rerun:
+        if rn.is_finished(spec.campaign_dir, run.key) and not args.rerun:
             print(f"skip     {run.key} (finished)")
             continue
         # R-ENV-02 is a precondition of every run, not only of the campaign:
