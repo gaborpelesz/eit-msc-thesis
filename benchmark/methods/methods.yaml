@@ -172,8 +172,11 @@ global_deviations:
       -DCMAKE_CUDA_ARCHITECTURES=<arch>. The campaign target is 120 (the
       Blackwell benchmark fleet); the local development GPU is 75. Every
       published number states which. `deviations verify --arch <arch>
-      --binaries <dir>` checks each built binary with `cuobjdump --list-elf`
-      against the configured value. Upstream's ACMH, ACMM, ACMP, ACMMP, MP-MVS
+      --image <image>` runs `cuobjdump -res-usage` on each built binary inside
+      the image and requires the method's own kernels to carry SASS for exactly
+      that architecture; the statically linked OpenCV CUDA modules
+      (`cv::cudev::…`) ship SASS for sm_50–sm_120 regardless and are only
+      checked for covering the target (D22). Upstream's ACMH, ACMM, ACMP, ACMMP, MP-MVS
       and DPE-MVS created their targets with FindCUDA's `cuda_add_executable`,
       which ignores CMAKE_CUDA_ARCHITECTURES and CMAKE_CUDA_FLAGS; every fork
       now builds through enable_language(CUDA) (one `build` commit each, see
