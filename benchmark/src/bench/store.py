@@ -118,33 +118,86 @@ def deviations_document(manifest, repo_root):
     return document
 
 
-def active_normalizations(manifest, entry, spec, run):
-    """The `normalization` deviations in force for one run (R-REP-01).
+def invocation_context(spec, entry, run, result=None):
+    """What this run actually executed, as the in-force test needs it.
 
-    A deviation whose reversal is `configuration author` is, by construction,
-    inactive under the `author` configuration. Planned global deviations are
-    not yet in the binaries and are therefore not reported as active.
+    Taken from the run's own argv when there is one, and from the plan the
+    runner would execute otherwise, so that `bench plan`-time callers see the
+    same answer as a finished record.
     """
-    active = []
+    from . import runner as rn
+
+    preprocess = ((result or {}).get("preprocess") or {}).get("argv") or []
+    command = (result or {}).get("command") or []
+    method_argv = command[command.index(spec.image) + 1:] if spec.image in command else []
+    if not preprocess or not method_argv:
+        try:
+            plan = rn.plan_commands(spec, entry, run)
+        except rn.RunnerError:
+            plan = {"preprocess": {"argv": []}, "measured": {"argv": []}}
+        preprocess = preprocess or plan["preprocess"]["argv"]
+        method_argv = method_argv or plan["measured"]["argv"]
+    argv = [str(t) for t in list(preprocess) + list(method_argv)]
+    return {
+        "flags": sorted({t.split("=", 1)[0] for t in argv if t.startswith("-")}),
+        # The shared converter is the one normalization whose presence is not a
+        # flag: CUMVS preprocesses with its own initializer under every
+        # configuration, so the substitution never happens for it.
+        "shared_converter": any("colmap2mvsnet_acm_perf" in t for t in preprocess),
+        "preprocess_argv": list(preprocess),
+    }
+
+
+def normalization_in_force(deviation, context, run):
+    """(in force, why) for one declared `normalization` deviation.
+
+    R-REP-01 asks what was in force for *this* run, so the answer is read off
+    the executed invocation rather than off the manifest text: a global
+    normalization that no argv carries (the `--no-debug-output` flag, which no
+    fork implements yet) and one that does not apply to the method (the shared
+    converter, for CUMVS) are not in force, whatever the manifest declares.
+    """
+    reversible = deviation.get("reversible")
+    text = "" if reversible in (None, False, True) else str(reversible).strip()
+    if not text or text.lower() in ("false", "none", "no"):
+        return False, "no reversal is declared and no argv shows it in force"
+    if text == "configuration author":
+        if run.configuration == "author":
+            return False, "reversed by the `author` configuration"
+        if not context["shared_converter"]:
+            return False, "this run did not preprocess with the shared converter"
+        return True, "the shared converter preprocessed this run"
+    if text.startswith("flag "):
+        flag = text.split(None, 1)[1].split("=", 1)[0].split()[0]
+        if flag in context["flags"]:
+            return True, f"{flag} is in the executed argv"
+        return False, f"{flag} is not in the executed argv"
+    return False, f"unrecognised reversal {text!r}; not claimed to be in force"
+
+
+def declared_normalizations(manifest, entry, spec, run, result=None):
+    """Every declared `normalization`, each with its in-force verdict."""
+    context = invocation_context(spec, entry, run, result)
+    declared = []
     for deviation in manifest.get("global_deviations") or []:
         if deviation.get("class") != "normalization" or deviation.get("status") != "active":
             continue
-        if (
-            str(deviation.get("reversible", "")).strip() == "configuration author"
-            and run.configuration == "author"
-        ):
-            continue
-        active.append({**deviation, "scope": "global"})
+        declared.append({**deviation, "scope": "global"})
     for deviation in entry.get("harness_deviations") or []:
-        if deviation.get("class") != "normalization":
-            continue
-        reversible = str(deviation.get("reversible", "")).strip()
-        if reversible == "configuration author" and run.configuration == "author":
-            continue
-        if reversible == "flag --padding" and spec.padding != "all":
-            continue
-        active.append({**deviation, "scope": "method"})
-    return active
+        if deviation.get("class") == "normalization":
+            declared.append({**deviation, "scope": "method"})
+    for deviation in declared:
+        in_force, why = normalization_in_force(deviation, context, run)
+        deviation["in_force"] = in_force
+        deviation["in_force_reason"] = why
+    return declared
+
+
+def active_normalizations(manifest, entry, spec, run, result=None):
+    """The `normalization` deviations in force for one run (R-REP-01)."""
+    return [
+        d for d in declared_normalizations(manifest, entry, spec, run, result) if d["in_force"]
+    ]
 
 
 def _summarise(text, limit=120):
@@ -193,23 +246,51 @@ def parameters(spec, manifest, entry, run, repo_root):
 
 
 def converter_record(spec, entry, run, repo_root):
-    """R-EXP-06: the converter's path and content hash."""
+    """R-EXP-06: what preprocessed this run, and what identifies it.
+
+    CUMVS's initializer is a binary that exists only inside the image, so the
+    host has no file to hash; its identity is the hash of the source the image
+    was built from (`identity: "source"`, D24 / M-006 open 3), and the image
+    manifest in the fingerprint binds that source to the binary that ran.
+    """
+    from . import image_manifest as imf
     from .evaluate import sha256_file
 
-    if run.configuration == "author" and entry.get("converter"):
+    record = {
+        "kind": None,
+        "path": None,
+        "sha256": None,
+        "identity": "file",
+        "source_path": None,
+        "source_sha256": None,
+    }
+    if entry.get("converter") is None:
+        source = imf.initializer_source(entry)
+        record.update(
+            kind="initializer",
+            # The container path, because that is where the artefact that ran
+            # lives; the host copy of it does not exist.
+            path=f"{spec.container['method_root']}/{Path(entry['path']).name}/"
+            f"{entry.get('initializer') or ''}",
+            identity="source",
+            source_path=source,
+            source_sha256=(
+                imf.converter_identity(repo_root, entry).get("sha256") if source else None
+            ),
+        )
+        return record
+    if run.configuration == "author":
         path = Path(repo_root) / entry["path"] / entry["converter"]
-        kind = "fork"
-    elif entry.get("converter") is None:
-        path = Path(repo_root) / entry["path"] / (entry.get("initializer") or "")
-        kind = "initializer"
+        record["kind"] = "fork"
     else:
         path = Path(__file__).resolve().parents[1] / "eval" / "colmap2mvsnet_acm_perf.py"
-        kind = "shared"
+        record["kind"] = "shared"
     try:
         digest = sha256_file(path)
     except OSError:
         digest = None
-    return {"kind": kind, "path": str(path), "sha256": digest}
+    record.update(path=str(path), sha256=digest)
+    return record
 
 
 def build_record(spec, manifest, entry, run, result, fingerprint, deviations, repo_root):
@@ -228,7 +309,8 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
             (q for q in quality if abs(q["tolerance"] - spec.primary_tolerance) < 1e-9), None
         )
     cloud = result.get("point_cloud") or {}
-    normalizations = active_normalizations(manifest, entry, spec, run)
+    declared = declared_normalizations(manifest, entry, spec, run, result)
+    normalizations = [d for d in declared if d["in_force"]]
     preprocess = result.get("preprocess") or {}
     fork_sha = next(
         (
@@ -316,6 +398,10 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         ),
         "normalizations": [_summarise(n.get("description")) for n in normalizations],
         "normalizations_json": json.dumps(normalizations, default=str),
+        # Everything the manifest declares for this method, each with the
+        # verdict above: the declared text stays readable next to what the run
+        # actually carried.
+        "declared_normalizations_json": json.dumps(declared, default=str),
         "deviations_json": json.dumps(deviations, default=str),
         "fingerprint": fingerprint,
         "image": spec.image,

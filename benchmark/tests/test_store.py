@@ -176,7 +176,62 @@ def test_normalizations_depend_on_the_configuration(write_spec, spec_dict, manif
     assert not any(
         "shared" in n["description"] and n["scope"] == "global" for n in author_norms
     )
-    assert any(n.get("reversible") == "flag --padding" for n in author_norms)
+    # --padding reaches the shared converter, so it is in force under norm10
+    # and not under author, where the fork runs its own converter.
+    assert any(n.get("reversible") == "flag --padding" for n in norm_norms)
+    assert not any(n.get("reversible") == "flag --padding" for n in author_norms)
+    assert any(n.get("reversible") == "flag --neighbours=20" for n in norm_norms)
+
+
+def test_only_normalizations_the_invocation_carries_are_in_force(
+    write_spec, spec_dict, manifest
+):
+    """R-REP-01: the list says what ran, not what the manifest declares."""
+    spec_dict["methods"] = ["ACMH", "CUMVS"]
+    spec_dict["configurations"] = ["norm10"]
+    spec = sp.load(write_spec(spec_dict), manifest)
+
+    acmh_entry = sp.method_entry(manifest, "ACMH")
+    acmh = next(r for r in sp.expand(spec) if r.method == "ACMH")
+    declared = st.declared_normalizations(manifest, acmh_entry, spec, acmh)
+    # No fork implements --no-debug-output yet and the harness passes none, so
+    # the global flag is declared but not in force.
+    debug = [d for d in declared if d.get("reversible") == "flag --no-debug-output"]
+    assert debug and not any(d["in_force"] for d in debug)
+    # ACMH's own "needs no action" entry is likewise not something in force.
+    assert not any(
+        d["in_force"] for d in declared if "needs no action" in d["description"]
+    )
+    assert any(d["in_force"] and d["scope"] == "global" for d in declared)
+
+    cumvs_entry = sp.method_entry(manifest, "CUMVS")
+    cumvs = next(r for r in sp.expand(spec) if r.method == "CUMVS")
+    cumvs_declared = st.declared_normalizations(manifest, cumvs_entry, spec, cumvs)
+    # CUMVS preprocesses with its own initializer, so the shared-converter
+    # normalization is declared globally but does not apply to it.
+    shared = [d for d in cumvs_declared if d.get("reversible") == "configuration author"]
+    assert shared and not any(d["in_force"] for d in shared)
+    assert "did not preprocess with the shared converter" in shared[0]["in_force_reason"]
+    # Its neighbour count does reach it, through the initializer's argv.
+    assert any(
+        d["in_force"] and d.get("reversible") == "flag --max-neighbors=20"
+        for d in cumvs_declared
+    )
+
+
+def test_the_cumvs_initializer_is_identified_by_its_source(write_spec, spec_dict, manifest):
+    spec_dict["methods"] = ["CUMVS"]
+    spec = sp.load(write_spec(spec_dict), manifest)
+    entry = sp.method_entry(manifest, "CUMVS")
+    run = sp.expand(spec)[0]
+    record = st.converter_record(spec, entry, run, ROOT)
+    assert record["kind"] == "initializer"
+    assert record["identity"] == "source"
+    # The binary exists only inside the image, so no host hash is invented.
+    assert record["sha256"] is None
+    assert record["path"].endswith("app_initialize_ETH3D")
+    assert record["source_path"].endswith("samples/app_initialize_ETH3D.cpp")
+    assert len(record["source_sha256"]) == 64
 
 
 def test_init_campaign_copies_the_spec_and_refuses_a_changed_one(
