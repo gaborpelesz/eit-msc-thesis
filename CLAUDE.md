@@ -1,15 +1,16 @@
 # MSc thesis monorepo (ELTE FI)
 
 *"High-Performance Patch-Match Multi-View Stereo: Separating Algorithmic Cost
-from Implementation Overhead"*
+from Implementation Overhead"* — due 15 November 2026.
 
 ## Layout
 
 - **`benchmark/`** — the benchmarking harness and eleven forked MVS
-  implementations under `benchmark/methods/`. The deviation-documentation policy
-  below governs every change to a method fork or to the measurement pipeline.
+  implementations under `benchmark/methods/`. The deviation policy below
+  governs every change to a method fork or to the measurement pipeline.
 - **`thesis/`** — LaTeX manuscript (ELTE FI template).
-- **`resources/`** — thesis paperwork, plus the papers and obsidian submodules.
+- **`resources/`** — thesis declaration form, `papers.yaml`, and the private
+  papers and obsidian submodules.
 
 Two rules that outrank convenience everywhere in this repo:
 
@@ -17,6 +18,20 @@ Two rules that outrank convenience everywhere in this repo:
    table below.
 2. Numbers in the manuscript must be generated from the results store, never
    transcribed by hand.
+
+## Working with the author
+
+The author decides; Claude drafts, surveys, transcribes and builds. A design
+question is resolved only by an explicit answer from the author — "no
+objection" is not an answer. Prefer a brief with two to four costed options and
+a recommendation over an open question.
+
+Plan, work items and findings live in the private vault (`resources/obsidian/`):
+`plan.md`, `TODO.md`, `findings/` (one note per finding, each with a
+verification procedure), `benchmarking/` (the harness SPEC and decision log).
+Read `plan.md` and `TODO.md` when resuming. Anything observed about a method's
+code or a paper that the thesis could cite goes into `findings/` the same day,
+with `file:line` and the fork SHA it was read at.
 
 ## Submodules
 
@@ -43,12 +58,27 @@ bibliography stays reproducible for readers who cannot clone the submodule.
 
 # `benchmark/` — benchmarking harness
 
-Benchmarking harness for the PatchMatch-MVS family.
-
 The thesis claims that much of the runtime/memory growth across the PatchMatch
 lineage is inherited implementation debt rather than algorithmic necessity.
 Every number this repo produces is evidence for that claim, so **measurement
 integrity outranks convenience in every design decision here.**
+
+## State of the harness (2026-09-05)
+
+- `benchmark/src/eval/` is the **v0** harness: runs a method on an ETH3D scene,
+  evaluates, writes wall time and F1 to SQLite. It is being replaced by a
+  harness built to the SPEC in the vault (`benchmarking/SPEC.md`): experiment
+  YAML → run list → one container per run → host-side sampler → a
+  **directory-per-run result store** (`run.json`, `telemetry.parquet`, phase
+  trace, logs) queried with DuckDB. No database. The SPEC moves to
+  `benchmark/docs/SPEC.md` once frozen.
+- `benchmark/methods/methods.yaml`, the `upstream-base` tags and the
+  `deviations` verifier described below **do not exist yet**. The fork audit
+  (vault `TODO.md`, Phase 1) creates them. No thesis measurement has been taken
+  and none may be until they exist.
+- DVP-MVS is checked out but not built, not in the Dockerfile and not in the
+  harness. Making it run is a Phase-1 work item.
+- The Dockerfile builds CUMVS twice (duplicate block); harmless, to be removed.
 
 ## Method provenance
 
@@ -62,7 +92,8 @@ never be blurred:
   optimizing the ACM family. **CUMVS (`cuda-multi-view-stereo`) is this.** It is
   *not* the thesis author's work; it is prior art cited as evidence that
   optimization headroom exists.
-- **`own`** — the thesis author's own reimplementation, once it exists.
+- **`own`** — the thesis author's own reimplementation (planned: a fork of
+  APD-MVS, optimised in measured steps), once it exists.
 
 Whenever a method is described in prose, in a table, or in the thesis, its
 provenance must be stated correctly. Do not attribute CUMVS to the author.
@@ -82,10 +113,17 @@ validity and the first thing a reviewer attacks. The governing rule:
 | `build` | compiler, flags, CUDA arch, dependency versions | **No — assume it affects results** |
 | `compat` | make it build/run on the current toolchain | Assess |
 | `interface` | CLI/IO plumbing to fit the harness | Should be; verify |
-| `instrumentation` | NVTX ranges, timers, counters | Must be measured, not assumed |
+| `instrumentation` | the phase timer (`bench_timer.h`), env-gated, byte-identical when off | Must be measured, not assumed |
 | `bugfix` | repairs a real defect (crash, wrong output) | Assess |
 | `normalization` | deliberately changes behaviour to make methods comparable | **Yes, by construction** |
-| `optimization` | performance changes (only for the reimplemented method) | **Yes, by construction** |
+| `optimization` | performance changes (only for the `own` method) | **Yes, by construction** |
+
+What a fork may contain after the audit: `build`, `compat`, `bugfix`,
+`interface`, the `instrumentation` phase timer, and one `normalization` flag
+to disable debug artefact output. Nothing else. Anything that changes what a
+published method computes stays out of the forks; parameter normalization is
+done at the harness level (shared converter, neighbour count) and recorded in
+`methods.yaml`.
 
 ### Rules
 
@@ -97,11 +135,11 @@ validity and the first thing a reviewer attacks. The governing rule:
    commit; never batch unrelated changes.
 3. `Deviation: normalization|optimization` **must** declare `Reversible: flag …`.
    The verifier enforces this.
-4. Deviations living in the harness rather than in a fork (preprocessing choice,
-   padding, parameter overrides) are recorded in `benchmark/methods/methods.yaml`,
-   not only in code.
-5. Deviations applying to all methods (the shared `colmap2mvsnet_acm_perf`
-   converter, the Docker toolchain and `sm_75` target) are recorded under
+4. Deviations living in the harness rather than in a fork (converter choice,
+   padding, neighbour count, parameter overrides) are recorded in
+   `benchmark/methods/methods.yaml`, not only in code.
+5. Deviations applying to all methods (the Docker toolchain and CUDA target, the
+   shared converter used by normalized configurations) are recorded under
    `global_deviations:` in the same manifest.
 
 ### Commit trailer format
@@ -113,7 +151,7 @@ validity and the first thing a reviewer attacks. The governing rule:
 
 Deviation: normalization
 Affects: quality,timing          # none | timing,memory,quality,io
-Reversible: flag --preprocessing=acm-shared    # or: no
+Reversible: flag --no-debug-output    # or: no
 Rationale: <why this was necessary, in full sentences>
 Upstream-ref: <file or symbol in the original implementation>
 ```
@@ -121,20 +159,22 @@ Upstream-ref: <file or symbol in the original implementation>
 ### Source of truth
 
 - `benchmark/methods/methods.yaml` — per method: repo, upstream URL,
-  `upstream_base` SHA, `provenance`, executable, arg template, preprocessing
-  mode, output PLY path, known limitations, harness deviations. Plus
-  `global_deviations:`.
+  `upstream_base` SHA, `provenance`, executable, arg template, converter,
+  output PLY path, pass-name mapping to the canonical vocabulary, known
+  limitations, harness deviations. Plus `global_deviations:`.
 - Each fork tags its fork point: `git tag upstream-base <sha>`.
 - `git log upstream-base..HEAD` in a fork is the exhaustive deviation list.
 
-Generated (never hand-edited): `DEVIATIONS.md`, `deviations.json`,
-`deviations.tex` (thesis appendix table). `deviations.json` is embedded in every
-run record so each figure traces to an exact patch set.
+Generated (never hand-edited), at writing time: `DEVIATIONS.md`,
+`deviations.json` (embedded in every run record), `deviations.tex` (thesis
+appendix table). Until then `verify` is the only tool: tags present, trailers
+well-formed, manifest SHAs equal to the submodule SHAs.
 
 ## Process — follow this every time
 
 Before editing anything under `benchmark/methods/`:
-1. Read the method's `methods.yaml` entry; confirm its provenance and existing deviations.
+1. Read the method's `methods.yaml` entry; confirm its provenance and existing
+   deviations.
 2. Decide the deviation class *before* writing code. If it is `normalization` or
    `optimization`, design it as a flag-selectable alternative from the start.
 
@@ -142,21 +182,31 @@ After editing:
 3. Commit in the fork with complete trailers. Update `upstream_base` only if the
    fork was rebased onto new upstream work.
 4. Bump the submodule SHA in `methods.yaml` and in the superproject.
-5. Run `deviations verify`, then `deviations render`.
+5. Run `deviations verify`.
 6. Never quote a measurement taken while `verify` was failing.
 
-When reporting results: state provenance and any `normalization` in force. If a
-normalization has a measured counterpart, report the pair, not just the
-normalized number.
+When reporting results: state provenance, the configuration (`author` or
+`norm10`) and any `normalization` in force. If a normalization has a measured
+counterpart, report the pair, not just the normalized number.
 
 ## Measurement integrity
 
-- Benchmarks require locked GPU clocks, persistence mode, no display on the
-  benchmark GPU, and randomized run order across repeats.
-- Every run record carries full provenance: hardware, driver, CUDA, image digest,
-  all submodule SHAs, `deviations.json`, parameters, resolution, repeat index.
-- Failures (OOM, segfault, timeout) are recorded as results, not discarded.
+The normative requirements are in the vault SPEC. The non-negotiables:
+
+- Locked GPU clocks, persistence mode, no display on the benchmark GPU;
+  randomized run order across repeats; one campaign is bound to one hardware
+  fingerprint (GPU model, driver, CUDA, image digest) and refuses to continue
+  on a different one.
+- Every run record carries full provenance: hardware, driver, CUDA, image
+  digest, all submodule SHAs, `deviations.json`, parameters, width,
+  configuration, repeat index.
+- Failures (OOM, segfault, timeout, no output) are recorded as results, never
+  discarded or retried silently. A re-run moves the old record aside; nothing
+  in the result store is ever deleted.
 - PatchMatch is randomized: no single-run claim about quality or runtime.
+  Repeat count comes from the variance pilot.
+- Preprocessing outside the method binary (converter, deep-learning inference)
+  is timed as its own phase; runtime is reported both with and without it.
 
 ---
 
@@ -166,5 +216,5 @@ normalized number.
 - Accompanying papers are in `resources/papers/` (private submodule, see above).
 - Working notes are in `resources/obsidian/` (private submodule, see above); the
   Obsidian vault root is that directory, so wiki-links resolve within it. Dated
-  session logs live in `resources/obsidian/sessions/`, and further note
-  categories belong alongside it at that level.
+  session logs live in `resources/obsidian/sessions/`; the plan, TODO list,
+  findings collection and benchmarking design sit alongside it at that level.
