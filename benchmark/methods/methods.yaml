@@ -721,7 +721,9 @@ methods:
         fixed resolution and only on the photometric path, so the canonical
         `scale` phase is N/A on the host for this method. Per-scale rows must
         be blank, never zero; the phase trace instead carries scale= on
-        patchmatch.propagate, which is where the loop actually is.
+        patchmatch.propagate, which is where the loop actually is. `scene_scan`
+        is likewise absent: MP-MVS reads config.yaml where the others inspect
+        the images (D21, judgment call 12).
       - >-
         Output directory is MP_MVS (fork-renamed from upstream's MPMVS); the
         harness depends on it.
