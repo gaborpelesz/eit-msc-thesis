@@ -523,6 +523,13 @@ def execute(
                 )
             except subprocess.SubprocessError:
                 exit_code = -1
+    except BaseException:
+        # An operator's second signal, or a harness fault, must not leave a
+        # detached container holding the benchmark GPU: whatever runs next
+        # would be measured against it (R-RUN-05, R-ENV-02).
+        if cid:
+            subprocess.run([docker, "rm", "-f", cid], capture_output=True)
+        raise
     finally:
         t1 = time.monotonic_ns()
         sampler.stop()

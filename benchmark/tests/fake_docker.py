@@ -104,6 +104,9 @@ def state():
 
 def main(argv):
     command = argv[0]
+    STATE.mkdir(parents=True, exist_ok=True)
+    with open(STATE / "calls.log", "a") as log:
+        log.write(" ".join(argv) + "\n")
     if command == "run":
         return do_run(argv)
     if command == "logs":

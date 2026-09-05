@@ -239,3 +239,20 @@ def test_root_owned_intermediates_are_reclaimed_before_removal(
     assert calls == [str(work)]
     assert not work.exists()
     assert any("chowned back" in note for note in result["notes"])
+
+
+def test_an_interrupt_does_not_leave_the_container_holding_the_gpu(
+    prepared_spec, manifest, fake_docker, monkeypatch, tmp_path
+):
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(rn, "_container_pid", interrupt)
+    run = sp.expand(prepared_spec)[0]
+    entry = sp.method_entry(manifest, run.method)
+    tmp_dir, _ = rn.open_run_dir(prepared_spec.campaign_dir, run.key)
+    with pytest.raises(KeyboardInterrupt):
+        rn.execute(prepared_spec, entry, run, tmp_dir, docker=fake_docker)
+
+    calls = (tmp_path / "docker-state" / "calls.log").read_text().splitlines()
+    assert any(call.startswith("rm -f 0123456789abcdef") for call in calls)
