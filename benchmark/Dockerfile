@@ -65,6 +65,10 @@ RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
 
 FROM base AS eval
 
+# CUDA target for every method build. The campaign fleet is Blackwell (120);
+# override on a development machine, e.g. --build-arg CUDA_ARCH=75.
+ARG CUDA_ARCH=120
+
 WORKDIR /
 
 COPY --link --from=deps /deps/install /deps/install
@@ -76,7 +80,7 @@ RUN cd /sota/cuda-multi-view-stereo \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -87,7 +91,7 @@ RUN cd /sota/ACMH \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -97,7 +101,7 @@ RUN cd /sota/ACMM \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -107,7 +111,7 @@ RUN cd /sota/ACMP \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -117,7 +121,7 @@ RUN cd /sota/ACMMP \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -127,7 +131,7 @@ RUN cd /sota/APD-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -137,7 +141,7 @@ RUN cd /sota/HPM-MVS/HPM-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -147,7 +151,7 @@ RUN cd /sota/HPM-MVS_plusplus \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -157,7 +161,7 @@ RUN cd /sota/MP-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build
@@ -167,17 +171,7 @@ RUN cd /sota/DPE-MVS \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
-      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
-      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
-    && cmake --build build
-
-COPY methods/cuda-multi-view-stereo/ /sota/cuda-multi-view-stereo/
-RUN cd /sota/cuda-multi-view-stereo \
-    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_C_COMPILER=clang-18 \
-      -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DCMAKE_CUDA_ARCHITECTURES=75 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
       -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
     && cmake --build build

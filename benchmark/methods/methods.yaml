@@ -218,37 +218,49 @@ global_deviations:
     evidence: param-survey.md § C; decisions D02, D18
 
   - class: normalization
-    status: planned
+    status: active
     description: >-
       Debug artefact output disabled in every configuration behind a single
-      `--no-debug-output` flag shared by all forks, with the upstream
-      behaviour restored as the default. Upstream ships debug output ON in
-      several methods: DPE-MVS's DEBUG_COMPLEX (a full-resolution D2H copy plus
-      a JPEG encode per RunPatchMatch), DPE-MVS's show_medium_result=true
-      (3 JPEGs per image pass plus a PLY every fourth iteration), MP-MVS's four
-      config.yaml switches, and the per-prior-pass triangulation.png of
-      ACMP/ACMMP/MP-MVS/HPM-MVS++. The rewritten forks restore every upstream
-      default (DPE's DEBUG_COMPLEX defined, MP-MVS's four switches at 1); the
-      flag is added to all forks in one pass, and per policy rule 1 both
-      settings are measured in the pilot so the pair is a result, not just a
-      disclosure.
+      `--no-debug-output` flag, with the upstream behaviour left as the
+      binary's default. Upstream ships debug output ON in seven of the ten
+      campaign methods: DPE-MVS's DEBUG_COMPLEX (a full-resolution D2H copy
+      plus a JPEG encode per RunPatchMatch) and show_medium_result=true
+      (3 JPEGs per image pass, plus 2 per edge pre-pass), APD-MVS's
+      show_medium_result forced true in main (3 JPEGs per image pass), MP-MVS's
+      four config.yaml switches plus an unconditional costs.jpg per image pass,
+      HPM-MVS's depths_prior.dmb per prior pass, HPM-MVS++'s triangulation*.png
+      and up to two depths_prior*.dmb per prior pass, and the
+      triangulation.png of ACMP, ACMMP and MP-MVS. Every fork's default is the
+      upstream behaviour, config.yaml and DPE's #define DEBUG_COMPLEX included;
+      the flag only adds a way to skip the writes at run time. ACMH and ACMM
+      write no debug artefacts and take no flag; CUMVS writes none unless -d is
+      given and its OpenCV CommandLineParser rejects unknown keys, so the flag
+      must NOT be passed to it. Per policy rule 1 both settings are measured in
+      the pilot so the pair is a result, not just a disclosure.
     affects: timing,io
     reversible: flag --no-debug-output
     evidence: fork-audit.md § B.8 #10b, § B.9 #1d, § C.3; phase-survey.md § E.9
 
   - class: instrumentation
-    status: planned
+    status: active
     description: >-
       Phase-timer instrumentation. A single `bench_timer.h` vendored
-      identically into every fork, emitting
-      `PHASE <name> BEGIN|END <monotonic_ns> [k=v ...]` for the canonical_phases
-      above, compiled out byte-identically when BENCH_PHASES=0 and gated at
-      runtime by an environment variable. Every kernel launch in the ten
-      non-CUMVS methods is already followed by cudaDeviceSynchronize, so every
-      canonical phase boundary is a true sync point and no extra
-      synchronisation is introduced; CUMVS has two unsynchronised launches
-      whose cost is attributed to the following phase. Overhead must be
-      measured (instrumented vs BENCH_PHASES=0 build), not assumed.
+      byte-identically into all ten campaign forks (md5 must match across
+      them), emitting `PHASE <name> BEGIN|END <monotonic_ns> [k=v ...]` for the
+      canonical_phases above to the file named by MVS_BENCH_FILE, line
+      buffered so a crashed or killed run keeps its partial trace. It is
+      compiled out entirely under -DBENCH_PHASES=0 and, when compiled in, takes
+      one cached always-false branch per boundary unless MVS_BENCH_PHASES is
+      set; output never goes to the binary's own stdout or stderr. Every kernel
+      launch in the nine non-CUMVS methods is already followed by
+      cudaDeviceSynchronize, so every canonical phase boundary is a true sync
+      point and no extra synchronisation is introduced. CUMVS has two
+      unsynchronised launches (initializeDepthsAndNormals, calcInitialCosts);
+      their cost is attributed to the following patchmatch.propagate span
+      unless MVS_BENCH_SYNC is set, which inserts one cudaDeviceSynchronize at
+      the end of patchmatch.init and must itself be measured as an on/off pair
+      (R-TIM-08). Overhead must be measured (instrumented vs BENCH_PHASES=0
+      build), not assumed (R-TIM-09).
     affects: timing
     reversible: flag BENCH_PHASES=0 at compile time; env var at run time
     evidence: phase-survey.md § D
@@ -299,6 +311,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          R-EXP-11 (debug artefact output off) needs no action for this method:
+          it writes no debug artefacts. The harness must NOT pass
+          --no-debug-output to it -- the binary has no such flag.
+        reversible: no
+        affects: none
 
   - name: ACMM
     path: benchmark/methods/ACMM
@@ -335,6 +354,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          R-EXP-11 (debug artefact output off) needs no action for this method:
+          it writes no debug artefacts. The harness must NOT pass
+          --no-debug-output to it -- the binary has no such flag.
+        reversible: no
+        affects: none
 
   - name: ACMP
     path: benchmark/methods/ACMP
@@ -345,7 +371,7 @@ methods:
     paper: acmp.pdf
     source_subdir: .
     executable: build/ACMP
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     converter: colmap2mvsnet_acm.py
     output_ply: ACMP/ACMP_model.ply
     requires_equal_image_sizes: false
@@ -375,6 +401,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: ACMMP
     path: benchmark/methods/ACMMP
@@ -385,7 +418,7 @@ methods:
     paper: acmmp.pdf
     source_subdir: .
     executable: build/ACMMP
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     converter: colmap2mvsnet_acm.py
     output_ply: ACMMP/ACMMP_model.ply
     requires_equal_image_sizes: false
@@ -421,6 +454,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: APD-MVS
     path: benchmark/methods/APD-MVS
@@ -431,7 +471,7 @@ methods:
     paper: adp.pdf
     source_subdir: .
     executable: build/APD
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     invocation_optional_args: ["{gpu_index}"]
     converter: colmap2mvsnet.py
     output_ply: APD/APD.ply
@@ -453,7 +493,9 @@ methods:
       - >-
         show_medium_result defaults to true in main.cpp:135 (the field's
         default in main.h:96 is false), so three debug JPEGs are written per
-        image pass, inside the timed region.
+        image pass, inside the timed region. The fork's --no-debug-output
+        commit makes that assignment !no_debug_output; the default is still
+        true.
       - >-
         Upstream has 4 later README-only commits; no code drift. Not rebased.
       - >-
@@ -490,6 +532,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: HPM-MVS
     path: benchmark/methods/HPM-MVS
@@ -500,7 +549,7 @@ methods:
     paper: hpm_hpm.pdf
     source_subdir: HPM-MVS
     executable: HPM-MVS/build/HPM
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     converter: ACMM+NESP/windows/colmap2mvsnet_acm.py
     output_ply: HPM/HPM_model.ply
     requires_equal_image_sizes: false
@@ -541,6 +590,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: HPM-MVS_plusplus
     path: benchmark/methods/HPM-MVS_plusplus
@@ -551,7 +607,7 @@ methods:
     paper: hpm_plusplus_tpami2026.pdf
     source_subdir: .
     executable: build/HPM-MVS_plusplus
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     invocation_optional_args: ["{use_sky_mask}"]
     converter: colmap2mvsnet_acm.py
     output_ply: HPM_MVS_plusplus/HPM_MVS_plusplus.ply
@@ -604,6 +660,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: MP-MVS
     path: benchmark/methods/MP-MVS
@@ -614,7 +677,7 @@ methods:
     paper: mp_mvs.pdf
     source_subdir: .
     executable: build/MPMVS
-    invocation: ["{executable}", "{dataset_dir}", "{config}"]
+    invocation: ["{executable}", "{dataset_dir}", "{config}", "--no-debug-output"]
     config_path: /sota/MP-MVS/config/config.yaml
     converter: colmap2mvsnet_acm.py
     output_ply: MP_MVS/MPMVS_model.ply
@@ -637,10 +700,13 @@ methods:
       - >-
         The four debug switches in config/config.yaml (Save Dmb as JPG, Save
         Prior Dmb as JPG, Save Cost Map, Save Normal Map) are ON, as upstream
-        ships them, and are unconditional until the shared --no-debug-output
-        flag lands (see global_deviations). Every run therefore writes a JPEG
-        per depth map, prior, cost map and normal map plus a copy of each depth
-        map under <dense>/MP_MVS/save/, inside the measured region.
+        ships them, so by default every run writes a JPEG per depth map, prior,
+        cost map and normal map plus a copy of each depth map under
+        <dense>/MP_MVS/save/, inside the measured region. Two further writes
+        are unconditional in the per-image loop: costs.jpg per image pass and
+        triangulation.png per prior pass. --no-debug-output overrides all six
+        AFTER readConfig, so config.yaml stays exactly as released and its
+        contents still go into the run record verbatim.
       - >-
         Upstream's released CMakeLists forces CMAKE_BUILD_TYPE=Debug; the fork
         removes it and the image builds Release. Correct for a benchmark, but a
@@ -654,7 +720,8 @@ methods:
         Multi-scale is inside the kernel loop (PatchMatch.cu:1223-1235) at one
         fixed resolution and only on the photometric path, so the canonical
         `scale` phase is N/A on the host for this method. Per-scale rows must
-        be blank, never zero.
+        be blank, never zero; the phase trace instead carries scale= on
+        patchmatch.propagate, which is where the loop actually is.
       - >-
         Output directory is MP_MVS (fork-renamed from upstream's MPMVS); the
         harness depends on it.
@@ -686,6 +753,13 @@ methods:
           parameters in it belong in the run record.
         reversible: no
         affects: none
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: DPE-MVS
     path: benchmark/methods/DPE-MVS
@@ -696,7 +770,7 @@ methods:
     paper: dpe.pdf
     source_subdir: DPE-MVS
     executable: DPE-MVS/build/DPE
-    invocation: ["{executable}", "{dataset_dir}"]
+    invocation: ["{executable}", "{dataset_dir}", "--no-debug-output"]
     invocation_optional_args: ["{gpu_index}"]
     converter: DPE-MVS/colmap2mvsnet.py
     output_ply: DPE/DPE.ply
@@ -722,10 +796,10 @@ methods:
       - >-
         Upstream ships DEBUG_COMPLEX enabled (DPE.cu:3), copying a
         full-resolution buffer device->host and encoding complex.jpg on every
-        RunPatchMatch. The fork currently disables it unconditionally, inside a
-        commit titled "drop boost". This must become the flag-selectable
-        normalization; re-enabling it also requires fixing the un-ported
-        path("complex.jpg") at DPE.cu:3156, which no longer compiles.
+        RunPatchMatch. The #define is left defined and the block is guarded at
+        run time by --no-debug-output, so the compile-time switch keeps its own
+        meaning: undefined removes the code, defined without the flag is
+        upstream behaviour, defined with the flag skips the write.
       - >-
         No deep-learning model. "ES" is classical CV computed in-binary
         (Roberts, union-find, HoughLinesP or adaptive-median Canny).
@@ -764,6 +838,13 @@ methods:
         description: "norm10: converter emits 10 source views instead of the shipped 20."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          Debug artefact output disabled in both configurations by passing
+          --no-debug-output (R-EXP-11). The fork's own default is the upstream
+          behaviour; see global_deviations for what each method writes.
+        reversible: flag --no-debug-output
+        affects: timing,io
 
   - name: DVP-MVS
     path: benchmark/methods/DVP-MVS
@@ -837,8 +918,8 @@ methods:
     requires_equal_image_sizes: false
     fork_sha: null
     passes:
-      estimateDepth(gc_iter=0): photometric
-      estimateDepth(gc_iter>0): geometric
+      photometric: photometric
+      geometric: geometric
     known_limitations:
       - >-
         Does not use any colmap2mvsnet converter. Its own C++
@@ -858,8 +939,14 @@ methods:
       - >-
         Does not fit the per-image I/O model at all: no .dmb round trip, one
         global input_load, no fusion.load, no prior_build, no
-        patchmatch.finalize. Those phases must be reported N/A, never folded
-        into patchmatch - hiding them would hide the effect being measured.
+        patchmatch.finalize, no depthmap_write, no result_readback (the
+        download IS patchmatch.readback) and no device_init (no cudaSetDevice;
+        the CUDA context is created lazily and its cost lands in the first
+        device_upload). Those phases are absent from its trace and must be
+        reported N/A, never folded into patchmatch - hiding them would hide the
+        effect being measured. Its `upsample` is a nearest-neighbour
+        cv::resize, not a joint bilateral upsampling, and its `fusion` has no
+        separable load stage, so fusion == fusion.consistency for this method.
       - >-
         The only method with kernel launches not followed by a synchronise
         (initializeDepthsAndNormalsKernel, calcInitialCostsKernel), so a small
@@ -874,8 +961,9 @@ methods:
         never states whether app_initialize_ETH3D is included. Inferred to be
         excluded.
       - >-
-        The Dockerfile builds CUMVS twice (duplicate block); harmless, to be
-        removed.
+        Its OpenCV CommandLineParser rejects unrecognised keys, so the shared
+        --no-debug-output flag must not be passed to it. It writes no debug
+        artefacts unless -d/--debug is given, which the harness never passes.
     harness_deviations:
       - class: interface
         description: >-
@@ -892,3 +980,10 @@ methods:
           converter's neighbour count."
         reversible: flag --max-neighbors=20
         affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          R-EXP-11 (debug artefact output off) needs no action for this method:
+          it writes no debug artefacts. The harness must NOT pass
+          --no-debug-output to it -- the binary has no such flag.
+        reversible: no
+        affects: none
