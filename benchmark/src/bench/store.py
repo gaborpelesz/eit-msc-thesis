@@ -260,6 +260,19 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         "preprocess_convert_s": preprocess.get("duration_s"),
         "container_started_at": result.get("container_started_at"),
         "container_finished_at": result.get("container_finished_at"),
+        "clock_hold": result.get("clock_hold")
+        or {
+            "expected_mhz": None,
+            "min_mhz": None,
+            "max_mhz": None,
+            "samples": 0,
+            "held": None,
+            "method": None,
+        },
+        "gpu_state_evidence_json": json.dumps(
+            result.get("gpu_state_evidence") or {}, default=str
+        ),
+        "warnings": result.get("warnings") or [],
         "phases": result.get("phases") or [],
         "phases_by_pass": result.get("phases_by_pass") or [],
         "phase_trace_errors": result.get("phase_trace_errors") or [],

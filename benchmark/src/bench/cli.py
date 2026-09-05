@@ -272,7 +272,9 @@ def cmd_run(args):
 
         print(f"run      {run.key}")
         try:
-            result = rn.execute(spec, entry, run, tmp_dir, docker=args.docker)
+            result = rn.execute(
+                spec, entry, run, tmp_dir, docker=args.docker, gpu_state_evidence=evidence
+            )
             result = rn.collect_point_cloud(spec, entry, run, result, tmp_dir)
             result = rn.run_evaluation(spec, run, result, tmp_dir, docker=args.docker)
             result = rn.discard_intermediates(spec, result)

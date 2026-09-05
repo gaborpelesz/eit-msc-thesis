@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import evaluate as ev
+from . import fingerprint as fpr
 from . import phases as ph
 from . import sampler as smp
 
@@ -396,6 +397,7 @@ def execute(
     tmp_dir,
     docker="docker",
     sample_interval_s=smp.DEFAULT_INTERVAL_S,
+    gpu_state_evidence=None,
 ):
     """Run one run to completion and return everything the record needs.
 
@@ -408,6 +410,8 @@ def execute(
         "started_at": utc_now(),
         "work_dir": str(work_dir),
         "notes": [],
+        "warnings": [],
+        "gpu_state_evidence": gpu_state_evidence or {},
     }
     # A scratch directory left by an interrupted attempt would let its point
     # cloud or its .dmb files be mistaken for this run's output, so it is moved
@@ -548,6 +552,28 @@ def execute(
 
     telemetry = sampler.summary()
     sampler.write_parquet(tmp_dir / "telemetry.parquet")
+
+    # R-ENV-02 after the fact: the pre-run gate proved the clock was locked
+    # before the run; the telemetry says whether it stayed there during it. A
+    # run that lost the lock is recorded with `held: false`, never retried.
+    clocks = (gpu_state_evidence or {}).get("clocks", {})
+    hold = fpr.clock_hold(
+        sampler.column("gpu_sm_clock_mhz"),
+        fpr.expected_clock_mhz(gpu_state_evidence),
+        method=clocks.get("locked_clocks_method"),
+    )
+    result["clock_hold"] = hold
+    if hold["held"] is False:
+        result.setdefault("warnings", []).append(
+            f"the SM clock did not hold {hold['expected_mhz']} MHz during this run "
+            f"(observed {hold['min_mhz']}-{hold['max_mhz']} MHz over {hold['samples']} "
+            "samples); the run is recorded, and comparisons should exclude it (R-ENV-02)"
+        )
+    elif hold["held"] is None:
+        result.setdefault("warnings", []).append(
+            "no expected SM clock was established before this run, so the clock "
+            f"hold is unverified (observed {hold['min_mhz']}-{hold['max_mhz']} MHz)"
+        )
 
     device_phase_file = work_dir / "out" / "phases.txt"
     if device_phase_file.exists():

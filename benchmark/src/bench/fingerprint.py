@@ -13,6 +13,7 @@ import os
 import platform
 import socket
 import subprocess
+import time
 from pathlib import Path
 
 # R-ENV-06.
@@ -242,14 +243,129 @@ def bind(campaign_dir, fingerprint, declared=None):
     return fingerprint
 
 
-def locked_clocks_state(gpu_index=0):
+# R-ENV-02, third detection route. An idle GPU whose clocks are not locked
+# drops to the lowest supported graphics clock (P8, ~300 MHz on consumer
+# parts); one that holds a higher clock while idle is holding it because
+# something applied a lock. The inference is only valid at idle, so a busy GPU
+# is reported unknown rather than assumed locked.
+IDLE_CLOCK_SAMPLES = 10
+IDLE_CLOCK_INTERVAL_S = 0.1
+IDLE_UTILIZATION_MAX_PCT = 10
+
+
+def _mhz(value):
+    """`1800 MHz` -> 1800; `N/A`, `[N/A]` and anything else -> None."""
+    try:
+        return int(str(value).strip().split()[0])
+    except (ValueError, IndexError, AttributeError):
+        return None
+
+
+def supported_graphics_clocks(gpu_index=0):
+    """Every supported graphics clock in MHz, ascending, or None.
+
+    The smallest entry is the idle floor the driver falls back to, so it is
+    read from the device rather than assumed to be 300 MHz.
+    """
+    out = _run(["nvidia-smi", f"--id={gpu_index}", "-q", "-d", "SUPPORTED_CLOCKS"])
+    if out is None:
+        return None
+    values = []
+    for line in out.splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() == "Graphics":
+            mhz = _mhz(value)
+            if mhz is not None:
+                values.append(mhz)
+    return sorted(set(values)) or None
+
+
+def sample_clocks(
+    gpu_index=0, samples=IDLE_CLOCK_SAMPLES, interval_s=IDLE_CLOCK_INTERVAL_S, sleep=time.sleep
+):
+    """`samples` readings of the SM and graphics clock, over the idle window."""
+    rows = []
+    for index in range(samples):
+        if index:
+            sleep(interval_s)
+        query = nvidia_smi_query(
+            ["clocks.sm", "clocks.gr", "clocks.max.sm", "utilization.gpu"], gpu_index
+        )
+        if query is None:
+            break
+        rows.append(
+            {
+                "sm_mhz": _mhz(query.get("clocks.sm")),
+                "gr_mhz": _mhz(query.get("clocks.gr")),
+                "max_sm_mhz": _mhz(query.get("clocks.max.sm")),
+                "utilization_pct": _mhz(query.get("utilization.gpu")),
+            }
+        )
+    return rows
+
+
+def infer_locked_clocks(samples, floor_mhz=None, idle_utilization_max_pct=IDLE_UTILIZATION_MAX_PCT):
+    """(locked, evidence) from a window of idle clock samples.
+
+    True only when every sample carries the same SM clock, that clock is above
+    the device's idle floor, and the GPU was idle throughout. Anything else --
+    a varying clock, a clock sitting on the floor, a busy GPU, an unreadable
+    floor -- is None: the state is unknown and R-ENV-02 refuses the run.
+    """
+    evidence = {
+        "samples": len(samples),
+        "sm_mhz": sorted({s.get("sm_mhz") for s in samples}, key=lambda v: (v is None, v)),
+        "floor_mhz": floor_mhz,
+        "max_sm_mhz": next((s.get("max_sm_mhz") for s in samples if s.get("max_sm_mhz")), None),
+        "utilization_max_pct": max(
+            (s.get("utilization_pct") for s in samples if s.get("utilization_pct") is not None),
+            default=None,
+        ),
+    }
+
+    def unknown(reason):
+        evidence["verdict"] = reason
+        return None, evidence
+
+    if len(samples) < 3:
+        return unknown("fewer than three clock samples were read")
+    values = [s.get("sm_mhz") for s in samples]
+    if any(v is None for v in values):
+        return unknown("the SM clock was not readable in every sample")
+    if len(set(values)) != 1:
+        return unknown(f"the SM clock varied over the window: {sorted(set(values))}")
+    value = values[0]
+    utilization = evidence["utilization_max_pct"]
+    if utilization is None:
+        return unknown("GPU utilization was not readable, so the window is not known to be idle")
+    if utilization > idle_utilization_max_pct:
+        return unknown(
+            f"the GPU was busy during the window ({utilization}% > "
+            f"{idle_utilization_max_pct}%); a steady clock under load is not evidence of a lock"
+        )
+    if floor_mhz is None:
+        return unknown(
+            "the device's supported clocks are unreadable, so a held clock cannot "
+            "be told apart from the idle floor"
+        )
+    if value <= floor_mhz:
+        return unknown(
+            f"the SM clock sits on the idle floor ({value} MHz <= {floor_mhz} MHz); "
+            "that is what an unlocked GPU does at idle"
+        )
+    evidence["verdict"] = "held above the idle floor across the whole idle window"
+    return True, evidence
+
+
+def locked_clocks_state(gpu_index=0, sample=None, floor=None):
     """(locked, evidence) for the benchmark GPU.
 
-    Two mechanisms exist and only one of them is readable on a given GPU:
-    `nvidia-smi -ac` (applications clocks, datacentre parts) and
+    Two mechanisms exist to lock a GPU and only one of them is readable on a
+    given part: `nvidia-smi -ac` (applications clocks, datacentre parts) and
     `nvidia-smi -lgc` (locked clocks). NVML exposes a getter for the second
-    only from recent drivers, so both are probed and the state is reported
-    unknown -- never assumed locked -- when neither answers.
+    only from recent drivers -- driver 575 on the RTX 2080 Ti has neither --
+    so both are probed first, and only when neither answers is the state
+    inferred from the idle clock itself. It is never assumed.
     """
     evidence = {}
     try:
@@ -281,8 +397,74 @@ def locked_clocks_state(gpu_index=0):
         evidence.update(applications)
         graphics = applications.get("clocks.applications.graphics", "")
         if graphics and not graphics.startswith("[") and graphics != "N/A":
+            evidence["locked_clocks_method"] = "applications-clocks"
             return True, evidence
-    return None if "locked_clocks_mhz" not in evidence else False, evidence
+
+    # A getter that answered with a zero range is a definite "not locked"; only
+    # a device that answered nothing at all is a candidate for the inference.
+    if "locked_clocks_mhz" in evidence:
+        return False, evidence
+
+    samples = (sample or sample_clocks)(gpu_index)
+    floor_clocks = (floor or supported_graphics_clocks)(gpu_index)
+    locked, inference = infer_locked_clocks(
+        samples, floor_mhz=floor_clocks[0] if floor_clocks else None
+    )
+    evidence["idle_clock_inference"] = inference
+    if locked:
+        evidence["locked_clocks_method"] = "idle-clock-inference"
+        evidence["locked_clocks_inferred_mhz"] = samples[0]["sm_mhz"]
+        return True, evidence
+    return None, evidence
+
+
+def expected_clock_mhz(evidence):
+    """The SM clock the pre-run gate established, for the post-run check.
+
+    None when the gate proved a lock without pinning it to one value (an
+    applications-clock pair, or a locked range whose ends differ): the run is
+    then recorded with its observed range and no verdict, rather than with a
+    verdict invented here.
+    """
+    clocks = (evidence or {}).get("clocks", evidence) or {}
+    inferred = clocks.get("locked_clocks_inferred_mhz")
+    if inferred:
+        return int(inferred)
+    low_high = clocks.get("locked_clocks_mhz")
+    if isinstance(low_high, (list, tuple)) and len(low_high) == 2 and low_high[0] == low_high[1]:
+        return int(low_high[0]) or None
+    return _mhz(clocks.get("clocks.applications.graphics"))
+
+
+def clock_hold(values, expected_mhz, method=None):
+    """R-ENV-02 after the fact: did the SM clock hold for the whole run?
+
+    A run whose clock did not hold is still a run -- it is recorded with
+    `held: false` so that a query can exclude it, never discarded or retried.
+    """
+    readings = [int(v) for v in values if v is not None]
+    low = min(readings) if readings else None
+    high = max(readings) if readings else None
+    held = None
+    if expected_mhz is not None and readings:
+        held = low == expected_mhz and high == expected_mhz
+    return {
+        "expected_mhz": expected_mhz,
+        "min_mhz": low,
+        "max_mhz": high,
+        "samples": len(readings),
+        "held": held,
+        "method": method,
+    }
+
+
+def clock_hold_from_table(table, expected_mhz, method=None, column="gpu_sm_clock_mhz"):
+    """`clock_hold` over a telemetry table (anything with `.column(name)`)."""
+    try:
+        values = table.column(column).to_pylist()
+    except (KeyError, AttributeError):
+        values = []
+    return clock_hold(values, expected_mhz, method=method)
 
 
 def check_gpu_state(gpu_index=0):

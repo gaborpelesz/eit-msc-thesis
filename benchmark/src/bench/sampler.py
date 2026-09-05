@@ -269,6 +269,9 @@ class Sampler(threading.Thread):
     def sample_count(self):
         return len(self._rows["t_mono_ns"])
 
+    def column(self, name):
+        return list(self._rows[name])
+
     def table(self):
         import pyarrow as pa
 
