@@ -182,3 +182,60 @@ def test_a_header_only_point_cloud_is_no_output_not_ok(
     # The cloud is kept as evidence; it is its emptiness that is the result.
     assert Path(record["point_cloud_path"]).exists()
     assert json.loads(record["status_evidence_json"])["empty_output"]["point_count"] == 0
+
+
+def test_the_point_cloud_is_copied_out_of_a_directory_we_cannot_write(
+    prepared_spec, manifest, tmp_path
+):
+    """The measured container runs as root, so the directory it writes the
+    cloud into is root-owned: the harness may read it but not unlink out of
+    it. Reproduced here with a read-only directory."""
+    run = sp.expand(prepared_spec)[0]
+    entry = sp.method_entry(manifest, run.method)
+    produced = prepared_spec.work_dir(run) / "prepared" / entry["output_ply"]
+    produced.parent.mkdir(parents=True)
+    produced.write_text("ply\nformat ascii 1.0\nelement vertex 1\nend_header\n1 2 3\n")
+    produced.parent.chmod(0o555)
+    try:
+        result = rn.collect_point_cloud(
+            prepared_spec,
+            entry,
+            run,
+            {"status": "ok", "work_dir": str(prepared_spec.work_dir(run))},
+            tmp_path,
+        )
+        assert result["status"] == "ok"
+        assert result["point_cloud"]["point_count"] == 1
+        assert Path(result["point_cloud"]["path"]).exists()
+        assert produced.exists()
+    finally:
+        produced.parent.chmod(0o755)
+
+
+def test_root_owned_intermediates_are_reclaimed_before_removal(
+    prepared_spec, manifest, monkeypatch
+):
+    import subprocess
+
+    run = sp.expand(prepared_spec)[0]
+    work = prepared_spec.work_dir(run)
+    locked = work / "prepared" / "ACMM"
+    locked.mkdir(parents=True)
+    (locked / "depths.dmb").write_bytes(b"\x00" * 16)
+    locked.chmod(0o555)
+    calls = []
+
+    def fake_reclaim(spec, work_dir, docker="docker"):
+        calls.append(str(work_dir))
+        locked.chmod(0o755)
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    monkeypatch.setattr(rn, "reclaim_ownership", fake_reclaim)
+    try:
+        result = rn.discard_intermediates(prepared_spec, {"work_dir": str(work)})
+    finally:
+        if locked.exists():
+            locked.chmod(0o755)
+    assert calls == [str(work)]
+    assert not work.exists()
+    assert any("chowned back" in note for note in result["notes"])

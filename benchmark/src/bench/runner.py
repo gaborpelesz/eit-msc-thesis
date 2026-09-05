@@ -15,6 +15,7 @@ the only thing this module removes is the scratch working directory it created
 itself outside the store (R-ART-02).
 """
 
+import os
 import shutil
 import subprocess
 import time
@@ -620,7 +621,12 @@ def execute(
 
 
 def collect_point_cloud(spec, entry, run, result, tmp_dir):
-    """Move the point cloud out of the store (R-ART-03) and hash it."""
+    """Copy the point cloud out of the scratch tree (R-ART-03) and hash it.
+
+    Copied rather than moved: the measured container runs as root, so the
+    directory it wrote the cloud into is root-owned and the harness -- which
+    runs as the operator -- may read from it but not unlink out of it.
+    """
     work_dir = Path(result["work_dir"])
     produced = work_dir / "prepared" / entry["output_ply"]
     if not produced.exists():
@@ -636,7 +642,7 @@ def collect_point_cloud(spec, entry, run, result, tmp_dir):
         result.setdefault("notes", []).append(
             f"previous point cloud moved aside: {move_aside(target, 'superseded')}"
         )
-    shutil.move(str(produced), str(target))
+    shutil.copy2(str(produced), str(target))
     point_count = ev.ply_point_count(target)
     result["point_cloud"] = {
         "path": str(target),
@@ -691,7 +697,28 @@ def run_evaluation(spec, run, result, tmp_dir, docker="docker"):
     return result
 
 
-def discard_intermediates(spec, result):
+def reclaim_ownership(spec, work_dir, docker="docker"):
+    """Chown the scratch tree back to the operator, from inside a container.
+
+    Everything the measured process created belongs to root, because that is
+    what a container is by default and the harness does not change what the
+    method runs as. Handing the tree back with a throwaway root container is
+    cheaper than running the harness itself with the privileges to remove it.
+    """
+    return subprocess.run(
+        [
+            docker, "run", "--rm",
+            "-v", f"{work_dir}:/scratch",
+            "--entrypoint", "/bin/chown",
+            spec.image,
+            "-R", f"{os.getuid()}:{os.getgid()}", "/scratch",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+def discard_intermediates(spec, result, docker="docker"):
     """R-ART-02: drop the depth, normal and cost maps after evaluation.
 
     The only deletion the harness performs, and it is confined to the scratch
@@ -706,7 +733,16 @@ def discard_intermediates(spec, result):
     if root not in work_dir.parents:
         raise RunnerError(f"refusing to remove {work_dir}: it is not inside {root}")
     size = sum(p.stat().st_size for p in work_dir.rglob("*") if p.is_file())
-    shutil.rmtree(work_dir)
+    try:
+        shutil.rmtree(work_dir)
+    except PermissionError:
+        reclaim = reclaim_ownership(spec, work_dir, docker=docker)
+        if reclaim.returncode != 0:
+            raise
+        shutil.rmtree(work_dir)
+        result.setdefault("notes", []).append(
+            "the measured container's root-owned files were chowned back before removal"
+        )
     result.setdefault("notes", []).append(
         f"discarded {size} bytes of intermediates in {work_dir} (R-ART-02)"
     )

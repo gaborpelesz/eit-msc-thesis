@@ -234,7 +234,7 @@ def cmd_run(args):
         if _interrupted():
             return 130
         if rn.is_finished(spec.campaign_dir, run.key) and not args.rerun:
-            print(f"skip     {run.key} (finished)")
+            print(f"skip     {run.key} (finished)", flush=True)
             continue
         # R-ENV-02 is a precondition of every run, not only of the campaign:
         # a clock lock can be lost between runs.
@@ -248,10 +248,10 @@ def cmd_run(args):
         try:
             tmp_dir, moved = rn.open_run_dir(spec.campaign_dir, run.key, rerun=args.rerun)
         except rn.RunnerError as exc:
-            print(f"skip     {run.key}: {exc}")
+            print(f"skip     {run.key}: {exc}", flush=True)
             continue
         for path in moved:
-            print(f"aside    {path}")
+            print(f"aside    {path}", flush=True)
         st.write_host_marker(tmp_dir)
 
         parameters_json = json.dumps(
@@ -270,14 +270,14 @@ def cmd_run(args):
             rn.move_aside(tmp_dir, "aborted")
             return 1
 
-        print(f"run      {run.key}")
+        print(f"run      {run.key}", flush=True)
         try:
             result = rn.execute(
                 spec, entry, run, tmp_dir, docker=args.docker, gpu_state_evidence=evidence
             )
             result = rn.collect_point_cloud(spec, entry, run, result, tmp_dir)
             result = rn.run_evaluation(spec, run, result, tmp_dir, docker=args.docker)
-            result = rn.discard_intermediates(spec, result)
+            result = rn.discard_intermediates(spec, result, docker=args.docker)
             record = st.build_record(
                 spec, manifest, entry, run, result, fingerprint, deviations, root
             )
@@ -307,7 +307,8 @@ def cmd_run(args):
         print(
             f"  -> {record['status']:<12} wall {record['wall_time_s'] or float('nan'):.1f}s"
             f"  f1 {record['f1_primary'] if record['f1_primary'] is not None else 'n/a'}"
-            f"  {final}"
+            f"  {final}",
+            flush=True,
         )
 
     print(f"\n{executed} runs executed, {failures} not ok")
