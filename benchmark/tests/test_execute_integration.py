@@ -283,6 +283,8 @@ def test_an_uninstrumented_run_writes_no_trace_and_is_still_ok(
     assert record["instrumented"] is False
     assert not (final / "phases.txt").exists()
     assert not any(p["source"] == "method" for p in record["phases"])
+    # The absence of a trace is this arm working, not a defect to record.
+    assert record["phase_trace_errors"] == []
     # The harness's own spans are unaffected: preprocessing is still timed.
     assert record["preprocess_convert_s"] > 0
     assert not any("MVS_BENCH" in token for token in record["command"])

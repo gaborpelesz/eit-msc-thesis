@@ -634,6 +634,10 @@ def execute(
         shutil.copy2(device_phase_file, tmp_dir / "phases.txt")
     trace = ph.parse_file(tmp_dir / "phases.txt")
     harness_trace = ph.parse_file(harness_phase_file)
+    if not spec.phase_timer:
+        # R-TIM-09's uninstrumented arm is given no MVS_BENCH_PHASES, so the
+        # missing trace is the arm working, not a defect to record as one.
+        trace.errors = [e for e in trace.errors if "no phase trace was written" not in e]
 
     # Several forks report a CUDA failure on stdout, so both streams are
     # scanned for the failure markers.
