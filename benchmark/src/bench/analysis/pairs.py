@@ -215,7 +215,9 @@ def render(arm_a, arm_b, title, note=None, resamples=stats.BOOTSTRAP_RESAMPLES,
                 parts.append(
                     md.section(
                         f"{title} — {method}: phase shares of the `run` span",
-                        share_body,
+                        "A span's total includes its nested spans, so these shares "
+                        "overlap and do not sum to 100 %. Only the shift is read.\n\n"
+                        + share_body,
                         level=4,
                     )
                 )

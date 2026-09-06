@@ -36,7 +36,7 @@ def metric_rows(records):
         rows.append(
             (
                 f"phase:{phase}",
-                f"phase `{phase}` (s)",
+                f"phase `{phase}` total (s)",
                 [fr.phase_totals(r).get(phase) for r in records],
             )
         )

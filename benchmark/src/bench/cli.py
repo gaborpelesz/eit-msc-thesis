@@ -186,6 +186,11 @@ def cmd_variance(args):
 
     dirs = _campaign_dirs(args.campaign_dir)
     print(f"<!-- variance over {', '.join(str(d) for d in dirs)} -->\n")
+    if args.status_only:
+        # Several campaigns' runs listed together is an inventory; their
+        # dispersion together is not, because they are different arms.
+        print(va.render_status(dirs))
+        return 0
     print(va.render(dirs, resamples=args.resamples))
     return 0
 
@@ -489,6 +494,11 @@ def main(argv=None):
     )
     variance.add_argument("campaign_dir", nargs="+")
     variance.add_argument("--resamples", type=int, default=10000)
+    variance.add_argument(
+        "--status-only",
+        action="store_true",
+        help="print only the per-run inventory, which is safe across arms",
+    )
     variance.set_defaults(func=cmd_variance)
 
     pair = subparsers.add_parser(

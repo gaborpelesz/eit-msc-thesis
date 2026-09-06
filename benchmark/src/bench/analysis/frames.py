@@ -136,6 +136,11 @@ def phase_totals(record, top_level_only=True, source="method"):
     Top-level means a name with no dot in it: `patchmatch.init` is a child of
     `patchmatch` and its time is already inside the parent's total, so summing
     both would double count (R-TIM-05).
+
+    Dots do not express the whole hierarchy -- ACMH's `image_pass` contains
+    `device_upload`, `patchmatch` and `depthmap_write`, none of which is dotted
+    -- so these totals still overlap and must not be added up. Each is reported
+    for its own dispersion, not as a share of a partition.
     """
     totals = {}
     for row in record.get("phases") or []:
@@ -154,6 +159,9 @@ def phase_shares(record):
     The share, not the seconds, is what the SYNC pair moves: a synchronisation
     that reattributes work between two spans changes both shares and may leave
     the total untouched.
+
+    A span's total includes its nested spans, so these shares overlap and do
+    not sum to 1. Only the shift between two arms is meaningful here.
     """
     totals = phase_totals(record, top_level_only=False)
     root = totals.get("run")
