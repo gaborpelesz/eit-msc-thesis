@@ -6,6 +6,8 @@
     bench fingerprint [--image TAG]
     bench status <campaign_dir> [--spec spec.yaml]
     bench query  <campaign_dir> [--sql SQL | --report NAME]
+    bench variance <campaign_dir>...
+    bench pair   --a <campaign_dir> --b <campaign_dir> [--a-repeats 1,2,3] [--shares]
     bench phases <run_dir>
 """
 
@@ -165,6 +167,48 @@ def cmd_query(args):
     for name in ([args.report] if args.report else list(st.CANNED_REPORTS)):
         print(f"\n== {name} ==")
         print(st.format_table(con, st.CANNED_REPORTS[name]))
+    return 0
+
+
+def _campaign_dirs(values):
+    dirs = []
+    for value in values:
+        dirs += [Path(part) for part in str(value).split(",") if part]
+    return dirs
+
+
+def _repeats(value):
+    return None if not value else [int(p) for p in str(value).split(",") if p]
+
+
+def cmd_variance(args):
+    from .analysis import variance as va
+
+    dirs = _campaign_dirs(args.campaign_dir)
+    print(f"<!-- variance over {', '.join(str(d) for d in dirs)} -->\n")
+    print(va.render(dirs, resamples=args.resamples))
+    return 0
+
+
+def cmd_pair(args):
+    from .analysis import pairs as pa
+
+    arm_a = pa.Arm(
+        args.name_a or ",".join(args.a), _campaign_dirs(args.a), _repeats(args.a_repeats)
+    )
+    arm_b = pa.Arm(
+        args.name_b or ",".join(args.b), _campaign_dirs(args.b), _repeats(args.b_repeats)
+    )
+    print(
+        pa.render(
+            arm_a,
+            arm_b,
+            args.title or "pair",
+            note=args.note,
+            resamples=args.resamples,
+            with_shares=args.shares,
+        )
+    )
     return 0
 
 
@@ -439,6 +483,30 @@ def main(argv=None):
     query.add_argument("--sql")
     query.add_argument("--report", choices=sorted(st.CANNED_REPORTS))
     query.set_defaults(func=cmd_query)
+
+    variance = subparsers.add_parser(
+        "variance", help="R-STA-02/03: dispersion per method and the D17 repeat count"
+    )
+    variance.add_argument("campaign_dir", nargs="+")
+    variance.add_argument("--resamples", type=int, default=10000)
+    variance.set_defaults(func=cmd_variance)
+
+    pair = subparsers.add_parser(
+        "pair", help="compare two arms that differ in one harness setting"
+    )
+    pair.add_argument("--a", nargs="+", required=True, help="arm A campaign director(ies)")
+    pair.add_argument("--b", nargs="+", required=True, help="arm B campaign director(ies)")
+    pair.add_argument("--a-repeats", help="restrict arm A to these repeats, e.g. 1,2,3")
+    pair.add_argument("--b-repeats", help="restrict arm B to these repeats")
+    pair.add_argument("--name-a")
+    pair.add_argument("--name-b")
+    pair.add_argument("--title")
+    pair.add_argument("--note", help="a sentence printed above the tables")
+    pair.add_argument(
+        "--shares", action="store_true", help="also report how phase shares moved"
+    )
+    pair.add_argument("--resamples", type=int, default=10000)
+    pair.set_defaults(func=cmd_pair)
 
     phases = subparsers.add_parser("phases", help="pretty-print a run's phase trace")
     phases.add_argument("run_dir")
