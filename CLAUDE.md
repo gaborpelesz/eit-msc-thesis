@@ -212,6 +212,26 @@ The normative requirements are in the vault SPEC. The non-negotiables:
 
 ---
 
+# `thesis/` — the manuscript
+
+**The prose is the author's.** Claude does not write thesis content into the
+LaTeX sources — no paragraphs, no argumentation, no "draft this section", not
+even from the author's own vault notes. What Claude does in `thesis/`:
+
+- LaTeX mechanics: template and class issues, packages, formatting, floats,
+  cross-references, bibliography plumbing (`papers.yaml` → BibTeX), build
+  errors, compile warnings.
+- Generated artefacts: tables and figures produced from the results store or
+  the manifest (`deviations.tex`, result tables, plots, diagrams), always by a
+  script that is checked in and re-runnable — never a hand-typed number.
+- Reviewing what the author wrote when asked: consistency with the store, the
+  vault, provenance wording, terminology.
+
+If a request would have Claude author content, say so and offer the
+permitted form instead (an outline in the vault, a table generator, a review).
+
+---
+
 # `resources/` — paperwork, papers and notes
 
 - The topic is described in `resources/Thesis declaration form.md`.
