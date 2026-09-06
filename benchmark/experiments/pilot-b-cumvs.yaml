@@ -1,0 +1,42 @@
+# Pilot B, arm 5 of 5 -- MVS_BENCH_SYNC OFF for CUMVS (R-TIM-08), the baseline
+# half of the pair whose on half is `pilot-b-sync.yaml`. Identical but for the
+# empty `method_env`.
+#
+# CUMVS is the THIRD-PARTY OPTIMIZATION of the ACM family
+# (cuda-multi-view-stereo, Fixstars), not the thesis author's work.
+#
+# Pilot A recorded CUMVS's single run at clock_hold 0.890, below the 0.95
+# criterion of D24: it is the one method in the set whose instantaneous draw
+# the dev machine's clock policy cannot hold. Three repeats here say whether
+# that is reproducible, which is a campaign-design input in its own right.
+
+version: 1
+campaign: pilot-b-cumvs-dev
+image: mvs-bench:sm75
+
+methods: [CUMVS]
+repeats: 3
+
+phase_timer: true
+debug_output: "off"
+method_env: {}
+scenes: [delivery_area]       # D20: Pilot A and B scene
+widths: [3200]
+configurations: [author]
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896
+
+# R-EXP-03: bind the campaign to the first machine that starts it.
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds

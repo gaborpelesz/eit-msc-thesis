@@ -1,0 +1,42 @@
+# Pilot B, arm 3 of 5 -- the UPSTREAM half of the debug-artefact pair
+# (R-EXP-11). `debug_output: upstream` removes the shared --no-debug-output
+# token from the resolved invocation, so each method writes the debug
+# artefacts its authors shipped it writing; the record says, per run, that the
+# R-EXP-11 normalization is NOT in force and why.
+#
+# APD-MVS is the arm that moves: show_medium_result is forced true in its
+# main(), which writes three JPEGs per image pass. ACMM is the negative
+# control -- its binary takes no such flag, so both arms invoke it with a
+# byte-identical argv and any difference between them is run-to-run noise.
+#
+# Compared against repeats 1-3 of `pilot-b-var-dev`.
+
+version: 1
+campaign: pilot-b-debug-dev
+image: mvs-bench:sm75
+
+methods: [ACMM, APD-MVS]
+repeats: 3
+
+phase_timer: true
+debug_output: upstream        # R-EXP-11 deliberately NOT in force
+scenes: [delivery_area]       # D20: Pilot A and B scene
+widths: [3200]
+configurations: [author]
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896
+
+# R-EXP-03: bind the campaign to the first machine that starts it.
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds

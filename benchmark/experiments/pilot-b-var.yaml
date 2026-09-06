@@ -1,0 +1,42 @@
+# Pilot B, arm 1 of 5 -- the variance measurement of decision D17
+# (R-STA-03/04). Two methods at opposite ends of the cost range, five repeats
+# of the identical run, so that the spread of a randomized PatchMatch under a
+# fixed configuration can be estimated and the campaign's repeat count N
+# chosen from a measured CI half-width rather than from a guess.
+#
+# Also the INSTRUMENTED half of the phase-timer pair (R-TIM-09): repeats 1-3
+# of this campaign are compared against `pilot-b-notimer.yaml`.
+#
+# This file names the dev-machine image; the campaign it sizes runs on the
+# fleet. Every number produced by `-dev` campaigns is a DEV-MACHINE number
+# (RTX 2080 Ti) and must be labelled as such.
+
+version: 1
+campaign: pilot-b-var-dev
+image: mvs-bench:sm75         # dev machine (RTX 2080 Ti); the fleet image is CUDA_ARCH=120
+
+methods: [ACMM, APD-MVS]
+repeats: 5
+
+phase_timer: true             # R-TIM-09: the instrumented arm
+debug_output: "off"           # R-EXP-11 in force, as the campaign will run it
+scenes: [delivery_area]       # D20: Pilot A and B scene
+widths: [3200]
+configurations: [author]
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896
+
+# R-EXP-03: bind the campaign to the first machine that starts it.
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds
