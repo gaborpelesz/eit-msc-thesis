@@ -191,7 +191,11 @@ def cmd_variance(args):
         # dispersion together is not, because they are different arms.
         print(va.render_status(dirs))
         return 0
-    print(va.render(dirs, resamples=args.resamples))
+    print(
+        va.render(
+            dirs, resamples=args.resamples, require_clock_hold=args.require_clock_hold
+        )
+    )
     return 0
 
 
@@ -199,10 +203,12 @@ def cmd_pair(args):
     from .analysis import pairs as pa
 
     arm_a = pa.Arm(
-        args.name_a or ",".join(args.a), _campaign_dirs(args.a), _repeats(args.a_repeats)
+        args.name_a or ",".join(args.a), _campaign_dirs(args.a), _repeats(args.a_repeats),
+        require_clock_hold=args.require_clock_hold,
     )
     arm_b = pa.Arm(
-        args.name_b or ",".join(args.b), _campaign_dirs(args.b), _repeats(args.b_repeats)
+        args.name_b or ",".join(args.b), _campaign_dirs(args.b), _repeats(args.b_repeats),
+        require_clock_hold=args.require_clock_hold,
     )
     print(
         pa.render(
@@ -499,6 +505,11 @@ def main(argv=None):
         action="store_true",
         help="print only the per-run inventory, which is safe across arms",
     )
+    variance.add_argument(
+        "--require-clock-hold",
+        action="store_true",
+        help="also drop runs whose SM clock did not hold the D24 duty cycle",
+    )
     variance.set_defaults(func=cmd_variance)
 
     pair = subparsers.add_parser(
@@ -516,6 +527,11 @@ def main(argv=None):
         "--shares", action="store_true", help="also report how phase shares moved"
     )
     pair.add_argument("--resamples", type=int, default=10000)
+    pair.add_argument(
+        "--require-clock-hold",
+        action="store_true",
+        help="also drop runs whose SM clock did not hold the D24 duty cycle",
+    )
     pair.set_defaults(func=cmd_pair)
 
     phases = subparsers.add_parser("phases", help="pretty-print a run's phase trace")

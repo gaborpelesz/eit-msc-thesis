@@ -71,6 +71,50 @@ def records(campaign_dirs):
     return sorted(rows, key=lambda r: (r.get("campaign", ""), r.get("run_key", "")))
 
 
+# A run that crashed, timed out or produced nothing has a wall time, but it is
+# not the method's wall time, so aggregates take `ok` runs only. R-FAIL-01
+# keeps the failure in the store and R-REP-02 keeps it visible: nothing is
+# dropped silently, and every table says what it left out.
+DEFAULT_STATUSES = ("ok",)
+
+
+def select(campaign_dirs, statuses=DEFAULT_STATUSES, require_clock_hold=False):
+    """(kept, excluded) -- the records an aggregate may use, and why not the rest.
+
+    `require_clock_hold` is off by default. D24 says a run whose SM clock did
+    not hold the duty-cycle threshold should be excluded from comparisons, but
+    on the development machine that is CUMVS's normal state (M-008), and
+    dropping every run of one method silently would hide the finding rather
+    than report it. The count is always in the header; the exclusion is opt-in.
+    """
+    kept, excluded = [], []
+    for record in records(campaign_dirs):
+        status = record.get("status")
+        if statuses and status not in statuses:
+            excluded.append((record.get("run_key"), f"status `{status}`"))
+            continue
+        held = (record.get("clock_hold") or {}).get("held")
+        if require_clock_hold and held is not True:
+            fraction = (record.get("clock_hold") or {}).get("fraction_at_expected")
+            excluded.append(
+                (record.get("run_key"), f"clock_hold.held={held} (fraction {fraction})")
+            )
+            continue
+        kept.append(record)
+    return kept, excluded
+
+
+def exclusion_note(excluded, total):
+    if not excluded:
+        return f"All {total} runs are in the aggregates below."
+    lines = [
+        f"{len(excluded)} of {total} runs are **excluded** from the aggregates below "
+        "and are kept in the store (R-FAIL-01):"
+    ]
+    lines += [f"  - `{key}` — {why}" for key, why in excluded]
+    return "\n".join(lines)
+
+
 def campaign_settings(campaign_dirs):
     """What distinguishes one arm from another, read back from the records.
 

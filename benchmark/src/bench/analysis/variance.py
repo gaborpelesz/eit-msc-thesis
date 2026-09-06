@@ -43,9 +43,11 @@ def metric_rows(records):
     return [row for row in rows if any(v is not None for v in row[2])]
 
 
-def by_method(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES):
+def by_method(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES,
+              statuses=fr.DEFAULT_STATUSES, require_clock_hold=False):
     """{method: [{metric, label, n, mean, sd, cv, min, max, ci...}]}."""
-    grouped = fr.group(fr.records(campaign_dirs))
+    kept, _ = fr.select(campaign_dirs, statuses, require_clock_hold)
+    grouped = fr.group(kept)
     out = {}
     for method, records in sorted(grouped.items()):
         rows = []
@@ -57,7 +59,8 @@ def by_method(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES):
 
 
 def sizing(campaign_dirs, metrics=("wall_time_s", "f1@0.02"), repeats=SIZING_REPEATS,
-           resamples=stats.BOOTSTRAP_RESAMPLES):
+           resamples=stats.BOOTSTRAP_RESAMPLES, statuses=fr.DEFAULT_STATUSES,
+           require_clock_hold=False):
     """The D17 table: what CI half-width N repeats would buy, per method.
 
     The SD is the one this pilot measured. Projecting from it assumes the
@@ -66,7 +69,8 @@ def sizing(campaign_dirs, metrics=("wall_time_s", "f1@0.02"), repeats=SIZING_REP
     the pilot has to be re-run on the campaign machine.
     """
     out = {}
-    for method, records in sorted(fr.group(fr.records(campaign_dirs)).items()):
+    kept, _ = fr.select(campaign_dirs, statuses, require_clock_hold)
+    for method, records in sorted(fr.group(kept).items()):
         available = {column: values for column, _, values in metric_rows(records)}
         labels = {column: label for column, label, _ in metric_rows(records)}
         rows = []
@@ -140,10 +144,19 @@ def render_status(campaign_dirs):
     return body
 
 
-def render(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES):
+def render(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES,
+           statuses=fr.DEFAULT_STATUSES, require_clock_hold=False):
     """The whole variance report as Markdown."""
-    parts = [md.section("Runs", render_status(campaign_dirs))]
-    for method, rows in by_method(campaign_dirs, resamples=resamples).items():
+    all_records = fr.records(campaign_dirs)
+    _, excluded = fr.select(campaign_dirs, statuses, require_clock_hold)
+    parts = [
+        md.section("Runs", render_status(campaign_dirs)),
+        fr.exclusion_note(excluded, len(all_records)) + "\n",
+    ]
+    for method, rows in by_method(
+        campaign_dirs, resamples=resamples, statuses=statuses,
+        require_clock_hold=require_clock_hold,
+    ).items():
         body = md.table(
             ["metric", "n", "mean", "SD", "CV", "min", "max",
              "bootstrap 95 % CI", "half-width"],
@@ -162,7 +175,10 @@ def render(campaign_dirs, resamples=stats.BOOTSTRAP_RESAMPLES):
         )
         parts.append(md.section(method, body))
 
-    for method, rows in sizing(campaign_dirs, resamples=resamples).items():
+    for method, rows in sizing(
+        campaign_dirs, resamples=resamples, statuses=statuses,
+        require_clock_hold=require_clock_hold,
+    ).items():
         if not rows:
             continue
         body = md.table(

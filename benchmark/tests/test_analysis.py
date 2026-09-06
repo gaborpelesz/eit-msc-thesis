@@ -385,3 +385,59 @@ def test_markdown_table_alignment_and_missing_values():
     assert md.fmt(True) == "yes"
     assert md.pct(None) == "—"
     assert md.pct(12.3456) == "12.35 %"
+
+
+# --------------------------------------------------------------------------
+# what may enter an aggregate
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mixed_store(write_spec, spec_dict, manifest):
+    crashed = _result(300.0, 0.0)
+    crashed.update(status="nonzero_exit", quality=None,
+                   point_cloud={"path": None, "size_bytes": None, "sha256": None})
+    unheld = _result(705.0, 0.83)
+    unheld["clock_hold"] = {**unheld["clock_hold"], "fraction_at_expected": 0.89,
+                            "held": False}
+    return _campaign(
+        write_spec, spec_dict, manifest, "mixed",
+        [_result(700.0, 0.83), crashed, unheld],
+    )
+
+
+def test_a_failed_run_is_kept_in_the_store_and_out_of_the_aggregates(mixed_store):
+    kept, excluded = fr.select(mixed_store)
+    assert len(fr.records(mixed_store)) == 3  # nothing is dropped from the store
+    assert [r["repeat"] for r in kept] == [1, 3]
+    assert excluded == [("ACMM__courtyard__w3200__author__r2", "status `nonzero_exit`")]
+
+    wall = {r["metric"]: r for r in va.by_method(mixed_store, resamples=200)["ACMM"]}[
+        "wall_time_s"
+    ]
+    assert wall["n"] == 2
+    assert wall["mean"] == pytest.approx(702.5)  # 300 s of crash is not a runtime
+
+
+def test_the_clock_hold_exclusion_is_opt_in_and_named(mixed_store):
+    kept, excluded = fr.select(mixed_store, require_clock_hold=True)
+    assert [r["repeat"] for r in kept] == [1]
+    assert any("clock_hold.held=False" in why for _, why in excluded)
+    assert len(fr.select(mixed_store)[0]) == 2  # off by default
+
+
+def test_every_report_says_what_it_left_out(mixed_store):
+    text = va.render(mixed_store, resamples=200)
+    assert "1 of 3 runs are **excluded**" in text
+    assert "status `nonzero_exit`" in text
+    assert "kept in the store (R-FAIL-01)" in text
+
+    arm = pa.Arm("mixed", [mixed_store])
+    assert len(arm.records) == 2
+    assert arm.excluded == [("ACMM__courtyard__w3200__author__r2", "status `nonzero_exit`")]
+    paired = pa.render(arm, arm, "self", resamples=200)
+    assert "excluded — status `nonzero_exit`" in paired
+
+
+def test_the_exclusion_note_says_so_when_nothing_was_excluded(variance_store):
+    assert "All 5 runs are in the aggregates" in va.render(variance_store, resamples=200)

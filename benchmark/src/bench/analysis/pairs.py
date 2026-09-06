@@ -29,18 +29,27 @@ PAIR_METRICS = [
 class Arm:
     """One side of a pair: some campaigns, optionally a subset of repeats."""
 
-    def __init__(self, name, campaign_dirs, repeats=None):
+    def __init__(self, name, campaign_dirs, repeats=None,
+                 statuses=fr.DEFAULT_STATUSES, require_clock_hold=False):
         self.name = name
         self.campaign_dirs = campaign_dirs
         self.repeats = None if repeats is None else set(repeats)
+        self.statuses = statuses
+        self.require_clock_hold = require_clock_hold
+
+    def _in_arm(self, record):
+        return self.repeats is None or record.get("repeat") in self.repeats
 
     @property
     def records(self):
-        return [
-            r
-            for r in fr.records(self.campaign_dirs)
-            if self.repeats is None or r.get("repeat") in self.repeats
-        ]
+        kept, _ = fr.select(self.campaign_dirs, self.statuses, self.require_clock_hold)
+        return [r for r in kept if self._in_arm(r)]
+
+    @property
+    def excluded(self):
+        _, dropped = fr.select(self.campaign_dirs, self.statuses, self.require_clock_hold)
+        keys = {r.get("run_key") for r in fr.records(self.campaign_dirs) if self._in_arm(r)}
+        return [(key, why) for key, why in dropped if key in keys]
 
     def for_method(self, method):
         return [r for r in self.records if r.get("method") == method]
@@ -165,6 +174,12 @@ def render(arm_a, arm_b, title, note=None, resamples=stats.BOOTSTRAP_RESAMPLES,
     ]
     if note:
         header.append(note)
+    for arm in (arm_a, arm_b):
+        if arm.excluded:
+            header.append(
+                f"- {arm.name}: "
+                + "; ".join(f"`{key}` excluded — {why}" for key, why in arm.excluded)
+            )
     for problem in problems:
         header.append(f"- ⚠ {problem}")
     if not problems:
