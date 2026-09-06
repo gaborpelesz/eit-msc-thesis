@@ -27,7 +27,10 @@ def add_manifest_argument(parser):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="deviations", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="deviations", description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     verify_parser = subparsers.add_parser(

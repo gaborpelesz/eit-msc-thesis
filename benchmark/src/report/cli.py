@@ -141,7 +141,10 @@ def cmd_summary(args):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="report", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="report", description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--manifest",
         default=str(mf.default_manifest_path()),
