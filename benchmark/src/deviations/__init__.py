@@ -5,4 +5,4 @@ and the forks' git logs. `deviations verify` gates every benchmark run: a
 measurement may not be produced from code whose deviations are not recorded.
 """
 
-__all__ = ["manifest", "verify", "cli"]
+__all__ = ["manifest", "verify", "render", "latex", "cli"]

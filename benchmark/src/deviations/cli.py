@@ -2,13 +2,19 @@
 
     deviations verify [--manifest PATH] [--arch 75|120] [--binaries DIR | --image NAME]
     deviations list   [--manifest PATH]
-    deviations render [--manifest PATH]
+    deviations render [--manifest PATH] [--methods-dir DIR] [--thesis-dir DIR]
+
+`render` writes the four generated artefacts -- `benchmark/methods/DEVIATIONS.md`,
+`benchmark/methods/deviations.json`, `thesis/generated/deviations.tex` and
+`thesis/generated/methods-provenance.tex` -- from the manifest and the forks'
+`upstream-base..HEAD` logs. They are never hand-edited; re-run `render` instead.
 """
 
 import argparse
 import sys
 
 from . import manifest as mf
+from . import render as rd
 from . import verify as vf
 
 
@@ -50,9 +56,19 @@ def main():
     add_manifest_argument(list_parser)
 
     render_parser = subparsers.add_parser(
-        "render", help="write DEVIATIONS.md, deviations.json and deviations.tex"
+        "render",
+        help="write DEVIATIONS.md, deviations.json, deviations.tex and "
+        "methods-provenance.tex from the manifest and the forks' git logs",
     )
     add_manifest_argument(render_parser)
+    render_parser.add_argument(
+        "--methods-dir",
+        help="where DEVIATIONS.md and deviations.json go (default: next to the manifest)",
+    )
+    render_parser.add_argument(
+        "--thesis-dir",
+        help=f"where the .tex tables go (default: {rd.THESIS_GENERATED}/)",
+    )
 
     args = parser.parse_args()
 
@@ -64,8 +80,9 @@ def main():
     if args.command == "list":
         return vf.list_deviations(args.manifest)
 
-    print("deviations render: not implemented")
-    return 0
+    return rd.render(
+        args.manifest, methods_dir=args.methods_dir, thesis_dir=args.thesis_dir
+    )
 
 
 if __name__ == "__main__":

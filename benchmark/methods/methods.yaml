@@ -7,9 +7,22 @@
 # mapping, known limitations, and the deviations that live in the harness
 # rather than in a fork.
 #
-# THIS FILE IS HAND-MAINTAINED. `DEVIATIONS.md`, `deviations.json` and
-# `deviations.tex` are GENERATED from this file plus the forks' git logs and
-# MUST NEVER BE HAND-EDITED.
+# THIS FILE IS HAND-MAINTAINED. Four artefacts are GENERATED from it plus the
+# forks' `git log upstream-base..HEAD`, by `uv run deviations render`, and MUST
+# NEVER BE HAND-EDITED:
+#
+#   benchmark/methods/DEVIATIONS.md         per-method commit and harness tables
+#   benchmark/methods/deviations.json       machine-readable; the same document
+#                                           the harness embeds in every run
+#                                           record and writes to each campaign
+#                                           directory, except that the
+#                                           checked-in copy leaves
+#                                           `generated_at` null so a re-render
+#                                           of an unchanged tree is byte-identical
+#   thesis/generated/deviations.tex         appendix longtable, one row per commit
+#   thesis/generated/methods-provenance.tex provenance and fork points
+#
+# Re-run `uv run deviations render` after any change here or in a fork.
 #
 # `deviations verify` reads this file and gates every benchmark run. A
 # measurement produced while `verify` was failing may not be quoted.

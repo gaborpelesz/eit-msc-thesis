@@ -1,0 +1,406 @@
+"""`deviations render` -- the generated deviation artefacts.
+
+CLAUDE.md, "Source of truth": `DEVIATIONS.md`, `deviations.json` and
+`deviations.tex` are GENERATED from `benchmark/methods/methods.yaml` plus each
+fork's `git log upstream-base..HEAD`, and are never hand-edited. This module is
+the only writer of all four artefacts:
+
+    benchmark/methods/DEVIATIONS.md
+    benchmark/methods/deviations.json
+    thesis/generated/deviations.tex
+    thesis/generated/methods-provenance.tex
+
+`document()` is also the builder the harness embeds in every run record
+(`bench.store.deviations_document`), so the checked-in `deviations.json` and
+the per-run copy cannot describe different code. They differ in exactly one
+key: the harness stamps `generated_at` with the campaign's start time, while
+the checked-in artefact leaves it null so that re-rendering an unchanged tree
+produces a byte-identical file.
+"""
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from . import latex as tex
+from . import manifest as mf
+
+COMMAND = "uv run deviations render"
+SOURCE = "benchmark/methods/methods.yaml + git log upstream-base..HEAD in each fork"
+
+TRAILER_KEYS = ("Deviation", "Affects", "Reversible", "Rationale", "Upstream-ref")
+
+
+def document(manifest, repo_root, generated_at=None):
+    """The deviation document: the manifest plus every fork's own commits.
+
+    `generated_at` is the caller's: the harness passes the campaign's start
+    time, `deviations render` passes nothing and gets null. Every other key is
+    a function of the working tree alone, so two renders of the same tree are
+    identical.
+    """
+    repo_root = Path(repo_root)
+    if isinstance(generated_at, datetime):
+        generated_at = generated_at.isoformat()
+    out = {
+        "generated_at": generated_at,
+        "manifest_version": manifest.get("version"),
+        "audit_source": manifest.get("audit_source"),
+        "audit_date": str(manifest.get("audit_date")),
+        "global_deviations": manifest.get("global_deviations") or [],
+        "methods": [],
+    }
+    for entry in manifest.get("methods") or []:
+        fork = repo_root / entry["path"]
+        head = mf.head_sha(fork) if mf.is_initialised_submodule(fork) else None
+        commits = mf.commits_since(fork, "upstream-base") if head else None
+        out["methods"].append(
+            {
+                "name": entry["name"],
+                "provenance": entry.get("provenance"),
+                "status": entry.get("status", "active"),
+                "path": entry["path"],
+                "upstream": entry.get("upstream"),
+                "upstream_base": entry.get("upstream_base"),
+                "fork_sha": head,
+                "harness_deviations": entry.get("harness_deviations") or [],
+                "fork_deviations": [
+                    {
+                        "sha": commit["sha"],
+                        "subject": commit["subject"],
+                        **{
+                            key.lower().replace("-", "_"): value
+                            for key, value in mf.parse_trailers(commit["message"]).items()
+                        },
+                    }
+                    for commit in (commits or [])
+                ],
+            }
+        )
+    return out
+
+
+def now_document(manifest, repo_root):
+    """The document as the harness embeds it, with a wall-clock stamp."""
+    return document(manifest, repo_root, generated_at=datetime.now(timezone.utc))
+
+
+def class_counts(method):
+    """{deviation class: commits} for one method's own commits."""
+    counts = {}
+    for commit in method["fork_deviations"]:
+        name = commit.get("deviation") or "(no trailer)"
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _short(sha):
+    return (sha or "")[:12]
+
+
+# ---------------------------------------------------------------------------
+# deviations.json
+# ---------------------------------------------------------------------------
+
+
+def json_text(doc):
+    """Deterministic: sorted keys, the manifest's own method order preserved."""
+    return json.dumps(doc, indent=2, sort_keys=True, default=str) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# DEVIATIONS.md
+# ---------------------------------------------------------------------------
+
+
+def _md_table(head, rows):
+    if not rows:
+        return ""
+    widths = [
+        max(len(head[i]), *(len(r[i]) for r in rows)) for i in range(len(head))
+    ]
+    def line(cells):
+        return "| " + " | ".join(cells[i].ljust(widths[i]) for i in range(len(cells))) + " |"
+    out = [line(head), "|" + "|".join("-" * (w + 2) for w in widths) + "|"]
+    out += [line(r) for r in rows]
+    return "\n".join(out)
+
+
+def _md(text):
+    """Collapse a folded YAML block and neutralise the table cell separator."""
+    return tex.oneline(text).replace("|", "\\|")
+
+
+def markdown(doc):
+    lines = [
+        "# Fork deviations",
+        "",
+        f"GENERATED by `{COMMAND}` -- do not edit.",
+        "",
+        f"Source of truth: `{SOURCE}`.",
+        "",
+        f"- manifest version: {doc['manifest_version']}",
+        f"- audit source: `{doc['audit_source']}` ({doc['audit_date']})",
+        "",
+        "A measurement may not be produced from code whose deviations are not",
+        "recorded (CLAUDE.md, \"Deviation policy\"). `git log upstream-base..HEAD` in",
+        "a fork is its exhaustive deviation list; this file is that log plus the",
+        "deviations that live in the harness rather than in a fork.",
+        "",
+        "## Summary",
+        "",
+    ]
+
+    classes = sorted({c for m in doc["methods"] for c in class_counts(m)})
+    head = ["method", "provenance", "status", "commits"] + classes
+    rows = []
+    for method in doc["methods"]:
+        counts = class_counts(method)
+        rows.append(
+            [
+                method["name"],
+                str(method["provenance"]),
+                str(method["status"]),
+                str(len(method["fork_deviations"])),
+            ]
+            + [str(counts.get(c, "")) for c in classes]
+        )
+    lines.append(_md_table(head, rows))
+    lines += [
+        "",
+        "Provenance is load-bearing: `third-party-optimization` is prior art by a",
+        "third party, not the thesis author's work.",
+        "",
+    ]
+
+    for method in doc["methods"]:
+        lines += [
+            f"## {method['name']}",
+            "",
+            f"- provenance: `{method['provenance']}`",
+            f"- status: `{method['status']}`",
+            f"- path: `{method['path']}`",
+            f"- upstream: {method['upstream']}",
+            f"- upstream_base: `{method['upstream_base']}`",
+            f"- fork HEAD: `{method['fork_sha'] or '(submodule not initialised)'}`",
+            "",
+        ]
+        if method["fork_deviations"]:
+            lines.append("### Commits in `upstream-base..HEAD`")
+            lines.append("")
+            lines.append(
+                _md_table(
+                    ["sha", "class", "affects", "reversible", "summary"],
+                    [
+                        [
+                            _short(c["sha"]),
+                            _md(c.get("deviation") or "(none)"),
+                            _md(c.get("affects") or "(none)"),
+                            _md(c.get("reversible") or "(none)"),
+                            _md(c["subject"]),
+                        ]
+                        for c in method["fork_deviations"]
+                    ],
+                )
+            )
+            lines.append("")
+        elif method["status"] == "excluded":
+            lines += [
+                "No commits after `upstream-base`: this fork is excluded from the",
+                "campaign and is kept pristine; `deviations verify` enforces that.",
+                "",
+            ]
+        else:
+            lines += ["No commits after `upstream-base`.", ""]
+
+        if method["harness_deviations"]:
+            lines.append("### Harness deviations")
+            lines.append("")
+            lines.append(
+                _md_table(
+                    ["class", "affects", "reversible", "description"],
+                    [
+                        [
+                            _md(d.get("class")),
+                            _md(d.get("affects")),
+                            _md(d.get("reversible")),
+                            _md(d.get("description")),
+                        ]
+                        for d in method["harness_deviations"]
+                    ],
+                )
+            )
+            lines.append("")
+
+    lines += ["## Deviations that apply to every method", ""]
+    lines.append(
+        _md_table(
+            ["class", "status", "affects", "reversible", "description", "evidence"],
+            [
+                [
+                    _md(d.get("class")),
+                    _md(d.get("status")),
+                    _md(d.get("affects")),
+                    _md(d.get("reversible")),
+                    _md(d.get("description")),
+                    _md(d.get("evidence")),
+                ]
+                for d in doc["global_deviations"]
+            ],
+        )
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# thesis/generated/*.tex
+# ---------------------------------------------------------------------------
+
+DEVIATIONS_CAPTION = (
+    "Every commit each method fork carries on top of its upstream fork point, "
+    "with the deviation class, what it can affect, and how it is reversed. "
+    "Generated from the manifest and the forks' git logs."
+)
+
+PROVENANCE_CAPTION = (
+    "Provenance and fork point of every method in the benchmark. "
+    "\\texttt{published-reference} is the authors' own release; "
+    "\\texttt{third-party-optimization} is an external, non-authorial "
+    "optimisation effort and is not the author's work."
+)
+
+
+def tex_deviations(doc):
+    body = []
+    for method in doc["methods"]:
+        if not method["fork_deviations"]:
+            note = (
+                "pristine fork, excluded from the campaign"
+                if method["status"] == "excluded"
+                else "no commits after the fork point"
+            )
+            body.append(
+                tex.row(
+                    [
+                        tex.cell(method["name"]),
+                        "\\texttt{--}",
+                        "--",
+                        "--",
+                        "--",
+                        f"\\emph{{{tex.cell(note)}}}",
+                    ]
+                )
+            )
+            continue
+        for index, commit in enumerate(method["fork_deviations"]):
+            body.append(
+                tex.row(
+                    [
+                        tex.cell(method["name"]) if index == 0 else "",
+                        f"\\texttt{{{tex.cell(_short(commit['sha']))}}}",
+                        tex.cell(commit.get("deviation") or "--"),
+                        tex.cell(commit.get("affects") or "--"),
+                        # Never truncated: how a deviation is reversed is the
+                        # policy-critical half of the disclosure.
+                        tex.cell(commit.get("reversible") or "--"),
+                        tex.cell(commit["subject"], limit=110),
+                    ]
+                )
+            )
+    footer = (
+        "Generated by \\texttt{%s} from \\texttt{benchmark/methods/methods.yaml} and "
+        "\\texttt{git log upstream-base..HEAD} in each fork; manifest version %s, "
+        "fork audit %s. %d methods, %d fork commits."
+        % (
+            tex.escape(COMMAND),
+            tex.escape(doc["manifest_version"]),
+            tex.escape(doc["audit_date"]),
+            len(doc["methods"]),
+            sum(len(m["fork_deviations"]) for m in doc["methods"]),
+        )
+    )
+    return tex.header(COMMAND, SOURCE) + tex.BOOKTABS_FALLBACK + "\n" + tex.longtable(
+        "@{}llllp{0.16\\linewidth}p{0.30\\linewidth}@{}",
+        ["method", "commit", "class", "affects", "reversible", "summary"],
+        body,
+        DEVIATIONS_CAPTION,
+        "tab:deviations",
+        footer,
+    )
+
+
+def tex_provenance(doc):
+    body = []
+    for method in doc["methods"]:
+        body.append(
+            tex.row(
+                [
+                    tex.cell(method["name"]),
+                    f"\\texttt{{{tex.cell(method['provenance'])}}}",
+                    tex.cell(method["status"]),
+                    f"\\url{{{method['upstream']}}}" if method["upstream"] else "--",
+                    f"\\texttt{{{tex.cell(_short(method['upstream_base']))}}}",
+                    f"\\texttt{{{tex.cell(_short(method['fork_sha']))}}}"
+                    if method["fork_sha"]
+                    else "--",
+                    str(len(method["fork_deviations"])),
+                ]
+            )
+        )
+    footer = (
+        "Generated by \\texttt{%s}; manifest version %s, fork audit %s. "
+        "\\emph{base} is the upstream commit the fork branches from "
+        "(tag \\texttt{upstream-base}); \\emph{fork} is the checked-out fork HEAD."
+        % (tex.escape(COMMAND), tex.escape(doc["manifest_version"]), tex.escape(doc["audit_date"]))
+    )
+    return tex.header(COMMAND, SOURCE) + tex.BOOKTABS_FALLBACK + "\n" + tex.longtable(
+        "@{}lllp{0.26\\linewidth}llr@{}",
+        ["method", "provenance", "status", "upstream", "base", "fork", "dev."],
+        body,
+        PROVENANCE_CAPTION,
+        "tab:methods-provenance",
+        footer,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Driver
+# ---------------------------------------------------------------------------
+
+THESIS_GENERATED = "thesis/generated"
+
+
+def render(manifest_path, methods_dir=None, thesis_dir=None):
+    """Write all four artefacts. Returns the process exit code."""
+    path = Path(manifest_path)
+    data = mf.load(path)
+    root = mf.repo_root(path.parent)
+    doc = document(data, root)
+
+    methods_dir = Path(methods_dir) if methods_dir else path.parent
+    thesis_dir = Path(thesis_dir) if thesis_dir else root / THESIS_GENERATED
+    methods_dir.mkdir(parents=True, exist_ok=True)
+    thesis_dir.mkdir(parents=True, exist_ok=True)
+
+    written = [
+        (methods_dir / "DEVIATIONS.md", markdown(doc)),
+        (methods_dir / "deviations.json", json_text(doc)),
+        (thesis_dir / "deviations.tex", tex_deviations(doc)),
+        (thesis_dir / "methods-provenance.tex", tex_provenance(doc)),
+    ]
+    for target, text in written:
+        target.write_text(text)
+        print(f"wrote {target}")
+
+    missing = [m["name"] for m in doc["methods"] if m["fork_sha"] is None]
+    if missing:
+        print(
+            "warning: submodule not initialised, no fork commits rendered for "
+            + ", ".join(missing)
+        )
+    for method in doc["methods"]:
+        counts = class_counts(method)
+        summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
+        print(f"  {method['name']:<20} {len(method['fork_deviations']):>2} commits  {summary}")
+    return 0

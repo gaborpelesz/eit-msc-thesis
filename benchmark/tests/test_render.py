@@ -1,0 +1,157 @@
+"""`deviations render`: determinism, JSON round-trip, LaTeX escaping.
+
+The store's copy of the deviation document and this package's must never drift,
+so one test compares the two builders on the real manifest.
+"""
+
+import json
+
+import pytest
+from bench import store as st
+from deviations import latex as tex
+from deviations import manifest as mf
+from deviations import render as rd
+
+REPO_ROOT = mf.repo_root(mf.default_manifest_path().parent)
+
+
+@pytest.fixture(scope="module")
+def document(manifest_module):
+    return rd.document(manifest_module, REPO_ROOT)
+
+
+@pytest.fixture(scope="module")
+def manifest_module():
+    return mf.load(mf.default_manifest_path())
+
+
+def test_document_matches_what_the_harness_embeds(manifest_module, document):
+    """R-STO-02: the checked-in artefact and each run record describe one tree.
+
+    `generated_at` is the campaign's start time in the harness copy and null in
+    the rendered one; everything else has to be identical.
+    """
+    embedded = st.deviations_document(manifest_module, REPO_ROOT)
+    assert embedded.pop("generated_at") is not None
+    assert document["generated_at"] is None
+    assert {k: v for k, v in document.items() if k != "generated_at"} == embedded
+
+
+def test_render_is_deterministic(tmp_path):
+    first, second = tmp_path / "a", tmp_path / "b"
+    for out in (first, second):
+        rd.render(mf.default_manifest_path(), methods_dir=out, thesis_dir=out)
+    for name in (
+        "DEVIATIONS.md",
+        "deviations.json",
+        "deviations.tex",
+        "methods-provenance.tex",
+    ):
+        assert (first / name).read_text() == (second / name).read_text()
+
+
+def test_json_round_trips(document):
+    assert json.loads(rd.json_text(document)) == document
+
+
+def test_json_keys_are_sorted(document):
+    """Deterministic key order at every level, so a diff shows only real change."""
+
+    def check(pairs):
+        keys = [k for k, _ in pairs]
+        assert keys == sorted(keys)
+        return dict(pairs)
+
+    json.loads(rd.json_text(document), object_pairs_hook=check)
+
+
+def test_every_manifest_method_appears(manifest_module, document):
+    names = [m["name"] for m in manifest_module["methods"]]
+    assert [m["name"] for m in document["methods"]] == names
+    for artefact in (rd.markdown(document), rd.tex_deviations(document),
+                     rd.tex_provenance(document)):
+        for name in names:
+            assert tex.escape(name) in artefact or name in artefact
+
+
+def test_excluded_method_is_rendered_with_zero_commits(document):
+    excluded = [m for m in document["methods"] if m["status"] == "excluded"]
+    assert excluded, "DVP-MVS is excluded from the campaign (D19-b, F-018)"
+    for method in excluded:
+        assert method["fork_deviations"] == []
+        assert "pristine fork, excluded from the campaign" in rd.tex_deviations(document)
+
+
+def test_provenance_is_stated_for_every_method(document):
+    for method in document["methods"]:
+        assert method["provenance"] in mf.PROVENANCES
+    # CUMVS is third-party prior art, never the author's work (CLAUDE.md).
+    cumvs = next(m for m in document["methods"] if m["name"] == "CUMVS")
+    assert cumvs["provenance"] == "third-party-optimization"
+    assert "third-party-optimization" in rd.tex_provenance(document)
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("a_b", "a\\_b"),
+        ("50%", "50\\%"),
+        ("a & b", "a \\& b"),
+        ("#1", "\\#1"),
+        ("$x$", "\\$x\\$"),
+        ("{}", "\\{\\}"),
+        ("~", "\\textasciitilde{}"),
+        ("^", "\\textasciicircum{}"),
+        ("a\\b", "a\\textbackslash{}b"),
+    ],
+)
+def test_escape(raw, expected):
+    assert tex.escape(raw) == expected
+
+
+def test_tex_has_no_unescaped_specials(document):
+    """`_ % #` may only appear escaped.
+
+    `&` is excluded because it is also the column separator, and `\\url{}` is
+    excluded because it takes its argument verbatim; the underscore in
+    `HPM-MVS_plusplus` is the case that makes this test worth having.
+    """
+    for artefact in (rd.tex_deviations(document), rd.tex_provenance(document)):
+        for line in artefact.splitlines():
+            if line.startswith("%") or "\\url{" in line:
+                continue
+            for index, character in enumerate(line):
+                if character in "_%#":
+                    assert index and line[index - 1] == "\\", f"{character} in {line!r}"
+
+
+def test_tex_is_footnote_free(document):
+    for artefact in (rd.tex_deviations(document), rd.tex_provenance(document)):
+        assert "\\footnote" not in artefact.replace("\\footnotesize", "")
+
+
+def test_tex_carries_label_and_booktabs_fallback(document):
+    assert "\\label{tab:deviations}" in rd.tex_deviations(document)
+    assert "\\label{tab:methods-provenance}" in rd.tex_provenance(document)
+    for artefact in (rd.tex_deviations(document), rd.tex_provenance(document)):
+        assert "\\providecommand{\\toprule}" in artefact
+        assert artefact.startswith("% GENERATED by `uv run deviations render`")
+
+
+def test_tex_rows_have_the_declared_column_count(document):
+    for artefact, columns in (
+        (rd.tex_deviations(document), 6),
+        (rd.tex_provenance(document), 7),
+    ):
+        for line in artefact.splitlines():
+            # Data rows only: the caption, the repeated heads and the
+            # `continued` markers also end in `\\`.
+            if not line.endswith("\\\\") or line.startswith("\\"):
+                continue
+            assert line.count(" & ") == columns - 1, line
+
+
+def test_class_counts(document):
+    counts = {m["name"]: rd.class_counts(m) for m in document["methods"]}
+    assert set(counts["CUMVS"]) <= set(mf.CLASSES_ALLOWED_IN_FOREIGN_FORK)
+    assert sum(counts["DVP-MVS"].values()) == 0
