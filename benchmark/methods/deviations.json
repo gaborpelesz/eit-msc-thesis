@@ -1,0 +1,1305 @@
+{
+  "audit_date": "2026-09-05",
+  "audit_source": "resources/obsidian/benchmarking/surveys/fork-audit.md",
+  "generated_at": null,
+  "global_deviations": [
+    {
+      "affects": "timing,memory,quality",
+      "class": "build",
+      "description": "Docker toolchain. Base image nvidia/cuda:12.8.1-devel-ubuntu24.04; host and CUDA-host compiler clang-18 (never the distribution gcc); nvcc from /usr/local/cuda-12.8; CMAKE_BUILD_TYPE=Release for every method; Ninja generator. Eigen pinned to 3.4.0. OpenCV pinned to 4.12.0 with opencv_contrib, built static with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz, WITH_CUDA=ON, WITH_VTK=ON. PCL comes from Ubuntu's libpcl-dev and is linked by HPM-MVS only. None of the eleven methods was released against this toolchain, so no measurement here is a measurement of the authors' binaries.",
+      "evidence": "benchmark/Dockerfile",
+      "reversible": false,
+      "status": "active"
+    },
+    {
+      "affects": "timing,memory,quality",
+      "class": "build",
+      "description": "CUDA architecture target. Passed to every method build as -DCMAKE_CUDA_ARCHITECTURES=<arch>. The campaign target is 120 (the Blackwell benchmark fleet); the local development GPU is 75. Every published number states which. `deviations verify --arch <arch> --image <image>` runs `cuobjdump -res-usage` on each built binary inside the image and requires the method's own kernels to carry SASS for exactly that architecture; the statically linked OpenCV CUDA modules (`cv::cudev::\u2026`) ship SASS for sm_50\u2013sm_120 regardless and are only checked for covering the target (D22). Upstream's ACMH, ACMM, ACMP, ACMMP, MP-MVS and DPE-MVS created their targets with FindCUDA's `cuda_add_executable`, which ignores CMAKE_CUDA_ARCHITECTURES and CMAKE_CUDA_FLAGS; every fork now builds through enable_language(CUDA) (one `build` commit each, see the forks' logs), so the flag is authoritative everywhere and the binary check is what keeps that claim honest over time.",
+      "evidence": "fork-audit.md \u00a7 C.1",
+      "reversible": "flag -DCMAKE_CUDA_ARCHITECTURES",
+      "status": "active"
+    },
+    {
+      "affects": "timing,quality",
+      "class": "build",
+      "description": "Common nvcc flags. The ACM lineage ships `-O3 --use_fast_math --maxrregcount=128 --ptxas-options=-v` in CUDA_NVCC_FLAGS and the harness keeps them. --use_fast_math changes device floating-point semantics and --maxrregcount=128 is an occupancy control, so both are load-bearing for runtime and for the numbers. They must reach the actual compile path in every fork. The MP-MVS fork had moved them to CMAKE_CUDA_FLAGS while its target was still created with `cuda_add_executable`, so it was compiled with neither (fork-audit.md \u00a7 B.8 #3c, \u00a7 C.1); repaired by its `build: build CUDA through the CUDA language` commit, verified on the nvcc command line and with cuobjdump. No MP-MVS number predates the repair.",
+      "evidence": "fork-audit.md \u00a7 C.1",
+      "reversible": false,
+      "status": "active"
+    },
+    {
+      "affects": "quality,timing",
+      "class": "normalization",
+      "description": "In the `norm10` configuration one shared converter, `colmap2mvsnet_acm_perf`, replaces the shipped converter of every method and emits 10 source views instead of the shipped 20. View selection is byte-identical in all five shipped variants, so the substitution changes no neighbour ranking; it equalises the image bytes and intrinsics that variants D/E (APD-MVS, DVP-MVS, DPE-MVS) otherwise pad, re-encode and rescale. Applies to `norm10` only; `author` runs each fork's own converter (R-EXP-06). Padding under `norm10` is all-or-none per scene (R-EXP-09).",
+      "evidence": "param-survey.md \u00a7 C; decisions D02, D18",
+      "reversible": "configuration author",
+      "status": "active"
+    },
+    {
+      "affects": "timing,io",
+      "class": "normalization",
+      "description": "Debug artefact output disabled in every configuration behind a single `--no-debug-output` flag, with the upstream behaviour left as the binary's default. Upstream ships debug output ON in seven of the ten campaign methods: DPE-MVS's DEBUG_COMPLEX (a full-resolution D2H copy plus a JPEG encode per RunPatchMatch) and show_medium_result=true (3 JPEGs per image pass, plus 2 per edge pre-pass), APD-MVS's show_medium_result forced true in main (3 JPEGs per image pass), MP-MVS's four config.yaml switches plus an unconditional costs.jpg per image pass, HPM-MVS's depths_prior.dmb per prior pass, HPM-MVS++'s triangulation*.png and up to two depths_prior*.dmb per prior pass, and the triangulation.png of ACMP, ACMMP and MP-MVS. Every fork's default is the upstream behaviour, config.yaml and DPE's #define DEBUG_COMPLEX included; the flag only adds a way to skip the writes at run time. ACMH and ACMM write no debug artefacts and take no flag; CUMVS writes none unless -d is given and its OpenCV CommandLineParser rejects unknown keys, so the flag must NOT be passed to it. Per policy rule 1 both settings are measured in the pilot so the pair is a result, not just a disclosure.",
+      "evidence": "fork-audit.md \u00a7 B.8",
+      "reversible": "flag --no-debug-output",
+      "status": "active"
+    },
+    {
+      "affects": "timing",
+      "class": "instrumentation",
+      "description": "Phase-timer instrumentation. A single `bench_timer.h` vendored byte-identically into all ten campaign forks (md5 must match across them), emitting `PHASE <name> BEGIN|END <monotonic_ns> [k=v ...]` for the canonical_phases above to the file named by MVS_BENCH_FILE, line buffered so a crashed or killed run keeps its partial trace. It is compiled out entirely under -DBENCH_PHASES=0 and, when compiled in, takes one cached always-false branch per boundary unless MVS_BENCH_PHASES is set; output never goes to the binary's own stdout or stderr. Every kernel launch in the nine non-CUMVS methods is already followed by cudaDeviceSynchronize, so every canonical phase boundary is a true sync point and no extra synchronisation is introduced. CUMVS has two unsynchronised launches (initializeDepthsAndNormals, calcInitialCosts); their cost is attributed to the following patchmatch.propagate span unless MVS_BENCH_SYNC is set, which inserts one cudaDeviceSynchronize at the end of patchmatch.init and must itself be measured as an on/off pair (R-TIM-08). Overhead must be measured (instrumented vs BENCH_PHASES=0 build), not assumed (R-TIM-09).",
+      "evidence": "phase-survey.md \u00a7 D",
+      "reversible": "flag BENCH_PHASES=0 at compile time; env var at run time",
+      "status": "active"
+    },
+    {
+      "affects": "none",
+      "class": "interface",
+      "description": "Dataset presentation. The harness binds an ETH3D scene into the container as three read-only mounts: `images/`, `dslr_calibration_undistorted/`, and the same calibration directory a second time as `sparse/`. The ACM-lineage converters (ACMH, ACMM, ACMP, ACMMP, HPM-MVS, HPM-MVS++, MP-MVS) read `<dense_folder>/sparse` as a COLMAP dense workspace would have it; APD-MVS, DPE-MVS and CUMVS read `dslr_calibration_undistorted` directly. Both see identical bytes; no fork's converter is edited and nothing is copied or rewritten. Image paths in images.txt carry the `dslr_images_undistorted/` prefix, so `images/<name>` resolves for both.",
+      "evidence": "benchmark/src/bench/runner.py scene_mounts",
+      "reversible": false,
+      "status": "active"
+    }
+  ],
+  "manifest_version": 1,
+  "methods": [
+    {
+      "fork_deviations": [
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script cannot configure on the benchmark toolchain, and its hardcoded sm_30/sm_52 architectures do not cover the benchmark GPU. The GNUCXX-only block that added -ffast-math -march=native is disabled rather than deleted; it never fired under the clang-18 toolchain used here, so this is behaviour-neutral for this harness, but it is not behaviour-neutral in general.",
+          "reversible": "no",
+          "sha": "63eca94101a9765ac35ec93d0ca0b5cc592d9db0",
+          "subject": "build: modernise CMake and raise the language standard to C++20",
+          "upstream_ref": "CMakeLists.txt (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components ACMH actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "565c2992a0f7f68845d334f635e6ba5f17d00aae",
+          "subject": "build: request only the OpenCV components ACMH uses",
+          "upstream_ref": "CMakeLists.txt:5 (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "2fb70fadaf12f558af81e5db9624b32b189499fe",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "Targets created by `cuda_add_executable` are compiled by FindCUDA, which reads `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`. With the upstream -gencode list removed, nvcc therefore fell back to its built-in default architecture and the benchmark GPU ran JIT'd PTX rather than native SASS, while the forks that already used `enable_language(CUDA)` were built natively for sm_75. Comparing methods compiled two different ways is not defensible in a study about implementation overhead, so all forks are moved onto the same path and the architecture is supplied by the harness. The device C++ standard is pinned to the same value the fork already passed to nvcc.",
+          "reversible": "no",
+          "sha": "0457ccad7e6a2a4aea5334ceebb6f7b83bf765af",
+          "subject": "build: build CUDA through the CUDA language so the target architecture is honoured",
+          "upstream_ref": "CMakeLists.txt:4,36 (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "8ba676cff99b9e5bbb0130cbd4af32fbc84eddb1",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:374 (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "ACMH hardcodes `cudaSetDevice(1)`, so it fails outright on a single-GPU machine and silently uses a different GPU than the rest of the family on a multi-GPU one. Device selection is the harness's job, done with CUDA_VISIBLE_DEVICES; every sibling in the ACM family already calls `cudaSetDevice(0)` (ACMM main.cpp:77, ACMP main.cpp:38, ACMMP main.cpp:77).",
+          "reversible": "no",
+          "sha": "ec7d0e1540f59c849ba1041e8c46d6ec647ca190",
+          "subject": "compat: select CUDA device 0 instead of device 1",
+          "upstream_ref": "ProcessProblem, main.cpp:38 (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods, and ACMH ships no timers at all. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "bccf6d6c221b629f37d6788118a87c543f5be972",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ProcessProblem, RunFusion (main.cpp); ACMH::RunPatchMatch (ACMH.cu) (GhiXu/ACMH @ 7db8c1b)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "048d479cb2a778caac2adfdb4acf260c9279af74",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        }
+      ],
+      "fork_sha": "048d479cb2a778caac2adfdb4acf260c9279af74",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "none",
+          "class": "normalization",
+          "description": "R-EXP-11 (debug artefact output off) needs no action for this method: it writes no debug artefacts. The harness must NOT pass --no-debug-output to it -- the binary has no such flag.",
+          "reversible": false
+        }
+      ],
+      "name": "ACMH",
+      "path": "benchmark/methods/ACMH",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/GhiXu/ACMH",
+      "upstream_base": "7db8c1b21af1dc5990fda066723e87c7e9e59a55"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script cannot configure on the benchmark toolchain, and its hardcoded sm_30/sm_52 architectures do not cover the benchmark GPU. The GNUCXX-only block that added -ffast-math -march=native is removed outright; it never fired under the clang-18 toolchain used here, so this is behaviour-neutral for this harness, but it is not behaviour-neutral in general.",
+          "reversible": "no",
+          "sha": "ae0cd1fa861b23fd451d77ca4bedc2dce49f00c9",
+          "subject": "build: modernise CMake and raise the language standard to C++20",
+          "upstream_ref": "CMakeLists.txt (GhiXu/ACMM @ e7f34fa)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components ACMM actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "dabf1fe158caee4b9c58cc1e4fa7d0d7144611b0",
+          "subject": "build: request only the OpenCV components ACMM uses",
+          "upstream_ref": "CMakeLists.txt:5 (GhiXu/ACMM @ e7f34fa)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "7fc2320855c71d4cbf3b9ed00863eaa3c8072f6c",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "Targets created by `cuda_add_executable` are compiled by FindCUDA, which reads `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`. With the upstream -gencode list removed, nvcc therefore fell back to its built-in default architecture and the benchmark GPU ran JIT'd PTX rather than native SASS, while the forks that already used `enable_language(CUDA)` were built natively for sm_75. Comparing methods compiled two different ways is not defensible in a study about implementation overhead, so all forks are moved onto the same path and the architecture is supplied by the harness. The device C++ standard is pinned to the same value the fork already passed to nvcc.",
+          "reversible": "no",
+          "sha": "3fa458a7baa351b2f370e6ed86bad65bc4b172dd",
+          "subject": "build: build CUDA through the CUDA language so the target architecture is honoured",
+          "upstream_ref": "CMakeLists.txt:4,26 (GhiXu/ACMM @ e7f34fa)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "dcae6e11a27f5e06b1608cea10610f8213831578",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:374 (GhiXu/ACMM @ e7f34fa)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods, and ACMM ships no timers at all. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "ff3b722727ff3c578a0060d4b6b5eeecb0e6c6db",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ComputeMultiScaleSettings, ProcessProblem, JointBilateralUpsampling, RunFusion (main.cpp); ACMM::RunPatchMatch (ACMM.cu) (GhiXu/ACMM @ e7f34fa)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "8ec132477725181bed29273f053f3b66aa8b20a9",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        }
+      ],
+      "fork_sha": "8ec132477725181bed29273f053f3b66aa8b20a9",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "none",
+          "class": "normalization",
+          "description": "R-EXP-11 (debug artefact output off) needs no action for this method: it writes no debug artefacts. The harness must NOT pass --no-debug-output to it -- the binary has no such flag.",
+          "reversible": false
+        }
+      ],
+      "name": "ACMM",
+      "path": "benchmark/methods/ACMM",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/GhiXu/ACMM",
+      "upstream_base": "e7f34fa56931e026078e4f11bdf53f54dddc9ccc"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script cannot configure on the benchmark toolchain, and its hardcoded sm_30/sm_52 architectures do not cover the benchmark GPU. The GNUCXX-only block that added -ffast-math -march=native is disabled rather than deleted; it never fired under the clang-18 toolchain used here, so this is behaviour-neutral for this harness, but it is not behaviour-neutral in general.",
+          "reversible": "no",
+          "sha": "ce70eedbb80a3de70e06a49cf61d5b715e3ed8c2",
+          "subject": "build: modernise CMake and raise the language standard to C++20",
+          "upstream_ref": "CMakeLists.txt (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components ACMP actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "ea3a014b0ded3d97c74f8b9dd79ee02c2819e475",
+          "subject": "build: request only the OpenCV components ACMP uses",
+          "upstream_ref": "CMakeLists.txt:5 (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "b39892be6d70f47643597c72c90b02517d932618",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "Targets created by `cuda_add_executable` are compiled by FindCUDA, which reads `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`. With the upstream -gencode list removed, nvcc therefore fell back to its built-in default architecture and the benchmark GPU ran JIT'd PTX rather than native SASS, while the forks that already used `enable_language(CUDA)` were built natively for sm_75. Comparing methods compiled two different ways is not defensible in a study about implementation overhead, so all forks are moved onto the same path and the architecture is supplied by the harness. The device C++ standard is pinned to the same value the fork already passed to nvcc.",
+          "reversible": "no",
+          "sha": "e5843610e4561c4300fe8e0d9d00ed676308fc98",
+          "subject": "build: build CUDA through the CUDA language so the target architecture is honoured",
+          "upstream_ref": "CMakeLists.txt:4,36 (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "e93424d171d0398fbea27a0a7484e6936d51bb9f",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:374 (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods, and ACMP ships no timers at all. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "b58da296694bd15557ee14d7d93c91efbd54563a",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ProcessProblem (including its planar prior block), RunFusion (main.cpp); ACMP::RunPatchMatch (ACMP.cu) (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes (one PNG per prior pass here, three JPEGs per image pass in DPE-MVS), so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "8ade8ced47a9c4f41e0c2f78e49b3631b7b109ae",
+          "subject": "normalization: add --no-debug-output to suppress the triangulation render",
+          "upstream_ref": "ProcessProblem planar-prior block, main.cpp:104 (cv::imwrite(triangulation_path, srcImage)) (GhiXu/ACMP @ 574c8e0)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "0837cc664ad749bd47a7414007411d22cc7715ba",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        }
+      ],
+      "fork_sha": "0837cc664ad749bd47a7414007411d22cc7715ba",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "ACMP",
+      "path": "benchmark/methods/ACMP",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/GhiXu/ACMP",
+      "upstream_base": "574c8e078b6f7bd93237bd180d46f5adf1169a19"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "The released script pins `CUDA_TOOLKIT_ROOT_DIR` to `/usr/local/cuda-8.0`, a path that does not exist in the benchmark image and that would override the toolkit the image actually installs. With the line removed the toolkit is discovered normally.",
+          "reversible": "no",
+          "sha": "4ab83e92fabd68af74876ffb2d7576c585df59ec",
+          "subject": "compat: drop the hardcoded CUDA 8.0 toolkit path",
+          "upstream_ref": "CMakeLists.txt:4 (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script cannot configure on the benchmark toolchain, and its hardcoded sm_60 architecture does not cover the benchmark GPU. The GNUCXX-only block that added -ffast-math -march=native is disabled rather than deleted; it never fired under the clang-18 toolchain used here, so this is behaviour-neutral for this harness, but it is not behaviour-neutral in general.",
+          "reversible": "no",
+          "sha": "9c0265291881e835f13abb5570e6da67fae5fdb6",
+          "subject": "build: modernise CMake and raise the language standard to C++20",
+          "upstream_ref": "CMakeLists.txt (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components ACMMP actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "8909587ec76b635f7f36dcc1f3aa2b8e369421a4",
+          "subject": "build: request only the OpenCV components ACMMP uses",
+          "upstream_ref": "CMakeLists.txt:6 (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "8e0faf33748694e88dcaedbafbd6dc095b516e6d",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "Targets created by `cuda_add_executable` are compiled by FindCUDA, which reads `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`. With the upstream -gencode list removed, nvcc therefore fell back to its built-in default architecture and the benchmark GPU ran JIT'd PTX rather than native SASS, while the forks that already used `enable_language(CUDA)` were built natively for sm_75. Comparing methods compiled two different ways is not defensible in a study about implementation overhead, so all forks are moved onto the same path and the architecture is supplied by the harness. The device C++ standard is pinned to the same value the fork already passed to nvcc.",
+          "reversible": "no",
+          "sha": "a1a9e7c6d739f78549b4c9921c1ae444592a9313",
+          "subject": "build: build CUDA through the CUDA language so the target architecture is honoured",
+          "upstream_ref": "CMakeLists.txt:5,32 (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "0a3462727a47f08b419005c4bdbe6b648b8fce93",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:374 (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods. ACMMP's only shipped timer is a cudaEvent pair around the joint bilateral upsampling kernel, which measures neither the run nor any phase of it. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "7f62cece70ba95c1fd5cb8db163506ede096bf9f",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ComputeMultiScaleSettings, ProcessProblem (including its planar prior block), JointBilateralUpsampling, RunFusion (main.cpp); ACMMP::RunPatchMatch (ACMMP.cu) (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison partly a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "2d34707ba16b5f47eb1c54c2ff8c805aa55d7b62",
+          "subject": "normalization: add --no-debug-output to suppress the triangulation render",
+          "upstream_ref": "ProcessProblem planar-prior block, main.cpp:136-137 (cv::imwrite(triangulation_path, srcImage)) (GhiXu/ACMMP @ 5b4c5fe)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "aa6e3cf0f440eed1b881de8917d80784d0a12c8b",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        }
+      ],
+      "fork_sha": "aa6e3cf0f440eed1b881de8917d80784d0a12c8b",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "ACMMP",
+      "path": "benchmark/methods/ACMMP",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/GhiXu/ACMMP",
+      "upstream_base": "5b4c5fede90c301d37853d3ea8943fd9e93dcce8"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "Boost is not installed in the benchmark image and adding it would make the toolchain of one method differ from the rest. `std::filesystem` is part of the C++17 standard library that clang-18 already provides and is semantically equivalent for every use here: `path`, directory creation and file streams. Only the spelling changes.",
+          "reversible": "no",
+          "sha": "318ce7614b740af17a957c0fea8dd7ffc158f6e1",
+          "subject": "compat: replace Boost.Filesystem with the standard <filesystem>",
+          "upstream_ref": "main.h:25-27,45; APD.h:7; APD.cpp; main.cpp (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`main.h` pulled in six CUDA headers, several of them (`cuda.h`, `cuda_texture_types.h`, `vector_types.h`) only reachable through the driver API include path, into every translation unit including the pure host ones. The declarations actually needed are `cuda_runtime.h` in `main.h` for `float3` in `PointList`, and `cuda_runtime.h` plus `curand_kernel.h` in `APD.h` for the texture and RNG types it declares. Nothing else changes.",
+          "reversible": "no",
+          "sha": "a97442a1f87b8741018b094b8f600a26333f776d",
+          "subject": "compat: include the CUDA runtime headers where they are actually used",
+          "upstream_ref": "main.h:10-16; APD.h:5-6 (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script requires CMake 2.8, Boost and a hardcoded architecture, none of which the benchmark image provides, and pins the device standard to c++11 while the host sources need C++20. Targets created by `cuda_add_executable` are compiled by FindCUDA, which ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`, so the architecture could not be supplied by the harness without this migration.",
+          "reversible": "no",
+          "sha": "9b8570cf8c5700f97c5120e1a229f8b0804ee8ed",
+          "subject": "build: build CUDA through the CUDA language, drop Boost and raise the standard to C++20",
+          "upstream_ref": "CMakeLists.txt (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components APD-MVS actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "c3e25a19c8af2e28c50b6194981eb6fecba31a3b",
+          "subject": "build: request only the OpenCV components APD-MVS uses",
+          "upstream_ref": "CMakeLists.txt:7 (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "io",
+          "deviation": "interface",
+          "rationale": "`diffuse_blue/diffuse_green/diffuse_red` are non-standard PLY property names that PCL's PLY reader does not recognise, which makes the fused cloud unloadable for visual inspection. The geometry, the byte layout and the blue-green-red channel order are unchanged.",
+          "reversible": "no",
+          "sha": "c8c34580889f0d592e8d8d39c64860426fd18716",
+          "subject": "interface: rename the PLY colour properties to the standard names",
+          "upstream_ref": "ExportPointCloud, APD.cpp:224-231 (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "APD-MVS refuses to run unless every image has identical dimensions, but the released code reports only a bare failure, which makes a dataset preparation error indistinguishable from a real defect when the harness runs it unattended. The combined width/height test is split so the message names the dimension and the offending file. Control flow is unchanged: the function still returns false in exactly the same cases.",
+          "reversible": "no",
+          "sha": "6aad232be069c18f0f4189d2158250206c37ac10",
+          "subject": "interface: say which image dimension mismatched in CheckImages",
+          "upstream_ref": "CheckImages, main.cpp (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "77d428097c0ca0c5d1ddcaceda59b287f0c72202",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "`CUDA_SEPARABLE_COMPILATION ON` was added by this fork; upstream never asked for it and the project has a single .cu translation unit, so nothing needs cross-translation-unit device linking. Relocatable device code inhibits whole-program inlining and changes register allocation, which is a real performance knob in a study about implementation overhead, and only four of the forks carried it. Removing it makes every method compile whole-program, as upstream released them. Verified to still build and to produce an sm_75 binary.",
+          "reversible": "no",
+          "sha": "b5b51835ef2c26431e7a01cee3c75160f77af5fc",
+          "subject": "build: stop compiling device code as relocatable device code",
+          "upstream_ref": "CMakeLists.txt (no such property upstream)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "3d7812d1a0c842028809be7b0fcd955b6a81655d",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet.py:376 (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods. APD-MVS times only the whole of ProcessProblem, which cannot separate image loading, upload, propagation, prior fitting and disk writes -- the split the thesis argument rests on. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "ff77640c13be0d434e6000ed15a467dbe2d6dab9",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, CheckImages, ComputeRoundNum, ProcessProblem (main.cpp); RunFusion, ExportPointCloud (APD.cpp); APD::RunPatchMatch (APD.cu) (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison partly a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "ed3185a017bb4e89003e7567faff75d095529555",
+          "subject": "normalization: add --no-debug-output to suppress the per-pass debug JPEGs",
+          "upstream_ref": "main.cpp:195, 218 (problem.show_medium_result = true) and the ShowDepthMap / ShowNormalMap / ShowWeakImage block at main.cpp:135 (whoiszzj/APD-MVS @ 95be7c9)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "3cda90f5804d1d0e7bc68d2e40404e601b2521a1",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        },
+        {
+          "affects": "io",
+          "deviation": "interface",
+          "rationale": "PCL's PLY reader (used by the ETH3D multi-view-evaluation binary) asserts in vertexColorCallback when the first colour property is not `red`, so the fused cloud could not be evaluated at all: the first harness run failed with `ply_io.cpp:395: vertexColorCallback: Assertion 'false' failed`. Every other campaign method already declares red/green/blue. The payload size and the fusion work are unchanged; colour is not used by the evaluator.",
+          "reversible": "no",
+          "sha": "b105b0b202d81ea2f50f9033196c6ddc93ff8982",
+          "subject": "interface: write the PLY colour channels in red-green-blue order",
+          "upstream_ref": "ExportPointCloud, APD.cpp:224-250 (whoiszzj/APD-MVS @ 95be7c9)"
+        }
+      ],
+      "fork_sha": "b105b0b202d81ea2f50f9033196c6ddc93ff8982",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the scene needs it, then for every method) instead of the fork's own converter, which pads AND re-encodes AND optionally rescales. author runs the fork's own converter.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "quality,timing",
+          "class": "normalization",
+          "description": "Zero-padding of every image to the scene maximum, required by CheckImages(). Applied to this method only, so its input pixels differ from the non-padding methods' - a disclosed asymmetry, not an equalisation.",
+          "reversible": "flag --padding"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "APD-MVS",
+      "path": "benchmark/methods/APD-MVS",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/whoiszzj/APD-MVS",
+      "upstream_base": "95be7c9bd267969cf11f906367ab56d1f5f85a59"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`<direct.h>` is a Microsoft C runtime header that does not exist in glibc, so the translation unit cannot be preprocessed on Linux. Nothing in the fork uses a declaration from it once the Windows `mkdir` calls are replaced.",
+          "reversible": "no",
+          "sha": "59d1dcbf73af9a88ea0d09a41dc6aa7d85313f69",
+          "subject": "compat: drop the MSVC-only <direct.h> include",
+          "upstream_ref": "main.h:27 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "The released code calls the single-argument Windows `mkdir(const char*)`, which does not exist on POSIX, where `mkdir` takes a mode. `std::filesystem::create_directories` is portable and, unlike the original, also creates missing parents.",
+          "reversible": "no",
+          "sha": "774e88227a12c000a89049a1bef71b1c819e9d8e",
+          "subject": "compat: create result directories with std::filesystem",
+          "upstream_ref": "main, HPM-MVS/main.cpp:43,649 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "memory",
+          "deviation": "compat",
+          "rationale": "`vec.swap(std::vector<T>())` binds a temporary to `swap`'s non-const reference parameter; only MSVC accepts that, clang and gcc reject it. Assignment from an empty vector is the portable spelling. It is not exactly equivalent -- the swap idiom is guaranteed to release capacity while assignment is not -- so peak host RSS may differ slightly.",
+          "reversible": "no",
+          "sha": "0e85a9d11e0509891084327b466083770d7435b4",
+          "subject": "compat: release image vectors by assignment instead of swap-with-temporary",
+          "upstream_ref": "HPM::ReleaseProblemHostMemory, HPM-MVS/HPM.cpp:1298-1307 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "`float point3D[3]` is written at index 3, one element past the end, while index 2 is left uninitialised. `GetDisparity` is declared static and has no callers anywhere in the fork, so no output changes; the write is nevertheless undefined behaviour and -Warray-bounds rejects it.",
+          "reversible": "no",
+          "sha": "c4db1753e6c86bc25d9892187999ac6f7b7c38f4",
+          "subject": "bugfix: write the depth to point3D[2] instead of one past the end",
+          "upstream_ref": "GetDisparity, HPM-MVS/HPM.cpp:458-465 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "Four pointers obtained from `new[]` were released with scalar `delete`, which is undefined behaviour. Only the deallocation form changes.",
+          "reversible": "no",
+          "sha": "bc10dc34822763b302a5208449ab245047bf30d2",
+          "subject": "bugfix: release new[] allocations with delete[]",
+          "upstream_ref": "ProcessProblem, HPM-MVS/main.cpp:212,362,371,464 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script hardcodes sm_86, which is not the benchmark GPU, and pins the device standard to c++11 while the host sources need C++20. Targets created by `cuda_add_executable` are compiled by FindCUDA, which ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`, so the architecture could not be supplied by the harness without this migration.",
+          "reversible": "no",
+          "sha": "67a40c64e3082558995ea762f852db1212a07353",
+          "subject": "build: build CUDA through the CUDA language and raise the standard to C++20",
+          "upstream_ref": "HPM-MVS/CMakeLists.txt (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "`<pcl/visualization/cloud_viewer.h>` and `<pcl/visualization/pcl_visualizer.h>` are included but never used, and they pull the PCL visualisation module (and through it VTK) into the compile and link of the only method in the comparison that links PCL at all. The point_types, point_cloud and kdtree_flann headers the code does use are kept.",
+          "reversible": "no",
+          "sha": "083966a9d2158c3d7ec0239ffaf925c6d39e3a10",
+          "subject": "build: drop the unused PCL visualisation headers",
+          "upstream_ref": "main.h:32-33 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components HPM-MVS actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "2060f960b40747ec2d82c369205fcec4f7b4126f",
+          "subject": "build: request only the OpenCV components HPM-MVS uses",
+          "upstream_ref": "HPM-MVS/CMakeLists.txt:8 (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "a3ba298f027d08e0f94fde2857f460ae6666a018",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "`CUDA_SEPARABLE_COMPILATION ON` was added by this fork; upstream never asked for it and the project has a single .cu translation unit, so nothing needs cross-translation-unit device linking. Relocatable device code inhibits whole-program inlining and changes register allocation, which is a real performance knob in a study about implementation overhead, and only four of the forks carried it. Removing it makes every method compile whole-program, as upstream released them. Verified to still build and to produce an sm_75 binary.",
+          "reversible": "no",
+          "sha": "4b08253927d1b47a4227c0fff7dbb9bd613edf1b",
+          "subject": "build: stop compiling device code as relocatable device code",
+          "upstream_ref": "CMakeLists.txt (no such property upstream)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods, and HPM-MVS ships no CPU timer at all -- only a cudaEvent pair around the joint bilateral upsampling kernel. Its three-level in-pass hierarchy is exactly the structure the thesis needs measured, and nothing in the released code can report it. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "972c7a1023ffb1c6d32d42705010c49957b76468",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ProcessProblem (including its three prior levels), RunFusion (HPM-MVS/main.cpp); HPM::RunPatchMatch (HPM-MVS/HPM.cu) (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison partly a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot. HPM-MVS's share of that I/O is small -- one .dmb per image pass -- but the flag has to exist in every fork for the harness to pass it uniformly.",
+          "reversible": "flag --no-debug-output",
+          "sha": "bdfd4e4540e443ec13842b925ccffee4fc52387e",
+          "subject": "normalization: add --no-debug-output to suppress the prior depth map dump",
+          "upstream_ref": "ProcessProblem level-2 prior block, HPM-MVS/main.cpp:456-457 (writeDepthDmb(depth_path, priordepths)) (CLinvx/HPM-MVS @ a4f951e)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "190d36ac3a71e473d87e3113c0f063cafa6e680d",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "ACMM+NESP/windows/colmap2mvsnet_acm.py:374 (CLinvx/HPM-MVS @ a4f951e)"
+        }
+      ],
+      "fork_sha": "190d36ac3a71e473d87e3113c0f063cafa6e680d",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "HPM-MVS",
+      "path": "benchmark/methods/HPM-MVS",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/CLinvx/HPM-MVS",
+      "upstream_base": "a4f951e657c6ba6ded8fdb17bdcd064f6e5fc5cf"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`<direct.h>` is a Microsoft C runtime header that does not exist in glibc, and the single-argument Windows `mkdir(const char*)` it declares has no POSIX equivalent -- POSIX `mkdir` takes a mode. The translation units cannot be compiled on Linux without this. `std::filesystem::create_directories` is portable and, unlike the original, also creates missing parents.",
+          "reversible": "no",
+          "sha": "a40a50ba78b738c94dddc5b43883f6acf2fc1a08",
+          "subject": "compat: drop <direct.h> and create result directories with std::filesystem",
+          "upstream_ref": "main.h:29; HPM.cpp:1267; main.cpp:83,952 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "quality",
+          "deviation": "compat",
+          "rationale": "When the read fails, `readDepthDmb` prints \"Error opening file\" and returns -1, leaving `confidences_host` filled with the indeterminate contents of a fresh `new float[...]`, which is then uploaded to the device and used. Without this fix HPM-MVS++ cannot be run faithfully on a case-sensitive filesystem at all. This is the one deviation in this fork that changes the numbers a Linux build produces.",
+          "reversible": "no",
+          "sha": "0a2894dafe32ea31fd6973c60d214188f90fd540",
+          "subject": "compat: read confidence.dmb under the name the producer writes",
+          "upstream_ref": "HPM::CudaConfidenceInitialization, HPM.cpp:880-889; producer at main.cpp:161,915 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "`float point3D[3]` is written at index 3, one element past the end, while index 2 is left uninitialised. `GetDisparity` is declared static and has no callers anywhere in the fork, so no output changes; the write is nevertheless undefined behaviour and -Warray-bounds rejects it.",
+          "reversible": "no",
+          "sha": "10d4eb5b6035828f98707d6dd2fdd0bbe55466ec",
+          "subject": "bugfix: write the depth to point3D[2] instead of one past the end",
+          "upstream_ref": "GetDisparity, HPM.cpp:505-513 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "memory",
+          "deviation": "compat",
+          "rationale": "`vec.swap(std::vector<T>())` binds a temporary to `swap`'s non-const reference parameter; only MSVC accepts that, clang and gcc reject it. Assignment from an empty vector is the portable spelling. It is not exactly equivalent -- the swap idiom is guaranteed to release capacity while assignment is not -- so peak host RSS may differ slightly.",
+          "reversible": "no",
+          "sha": "8ee4e1cf86781ea9c814e75df2e84068e1b25117",
+          "subject": "compat: release image vectors by assignment instead of swap-with-temporary",
+          "upstream_ref": "HPM::ReleaseProblemHostMemory, HPM.cpp:563-570 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "Two pointers obtained from `new[]` were released with scalar `delete`, which is undefined behaviour. Only the deallocation form changes.",
+          "reversible": "no",
+          "sha": "aadbad37ef82b09648641f952de47cfdef6959c3",
+          "subject": "bugfix: release new[] allocations with delete[]",
+          "upstream_ref": "HPM::CudaCannyInitialization, HPM.cpp:876; ProcessProblem, main.cpp:417 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "`main` validates only `argc < 2` and then reads `argv[2]` unconditionally, so the single-argument invocation its own usage string documents reads past the end of argv. The mask flag now defaults to false when the argument is absent, which is what the usage string already promised.",
+          "reversible": "no",
+          "sha": "68a07c96c0675adad0b40dd8938419eb75e83e2c",
+          "subject": "bugfix: make the mask argument actually optional",
+          "upstream_ref": "main, main.cpp:934-946 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script hardcodes sm_86, which is not the benchmark GPU, requires CMake 2.8 and pins the standard to c++11 while the host sources need C++20. Targets created by `cuda_add_executable` are compiled by FindCUDA, which ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`, so the architecture could not be supplied by the harness without this migration.",
+          "reversible": "no",
+          "sha": "390b93537cd2e56799578ab9fb37a278e48e63c6",
+          "subject": "build: build CUDA through the CUDA language and raise the standard to C++20",
+          "upstream_ref": "CMakeLists.txt (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components HPM-MVS_plusplus actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "3aa7cbc1e129458253b8a630b90faa162ed724b6",
+          "subject": "build: request only the OpenCV components HPM-MVS_plusplus uses",
+          "upstream_ref": "CMakeLists.txt:5 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "2fe4864aae1663b8e6f2e468cd7f2b83c95cbfec",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "`CUDA_SEPARABLE_COMPILATION ON` was added by this fork; upstream never asked for it and the project has a single .cu translation unit, so nothing needs cross-translation-unit device linking. Relocatable device code inhibits whole-program inlining and changes register allocation, which is a real performance knob in a study about implementation overhead, and only four of the forks carried it. Removing it makes every method compile whole-program, as upstream released them. Verified to still build and to produce an sm_75 binary.",
+          "reversible": "no",
+          "sha": "e46a87d87b012cf9c776de00076225814bd5a766",
+          "subject": "build: stop compiling device code as relocatable device code",
+          "upstream_ref": "CMakeLists.txt (no such property upstream)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "4eea9f71d837b45da215177e21e349fb0d2ff2f1",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:375 (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods, and HPM-MVS++ ships no CPU timer at all -- only two cudaEvent pairs around upsampling kernels, one of whose prints is commented out. This is the most expensive schedule in the set (18 image passes per image plus 12 whole-dataset sweeps) and the survey's hypothesis that the sweeps dominate cannot be tested without a phase trace.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "3ed2788c449283b0704d342a78ed708a0c121151",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, ComputeMultiScaleSettings, ProcessProblem, JointBilateralUpsampling, ConfidenceEvaluation, RunFusion (main.cpp); StoreColorPlyFileBinaryPointCloud (HPM.cpp); HPM::RunPatchMatch (HPM.cu) (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison partly a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "1ad8aa7cd887e2d0e5fa44cedf80768a807fabf9",
+          "subject": "normalization: add --no-debug-output to suppress the prior debug artefacts",
+          "upstream_ref": "ProcessProblem prior blocks, main.cpp:200, 249, 306, 357, 395 (cv::imwrite(triangulation_path, ...) and the depths_prior*.dmb writes) (CLinvx/HPM-MVS_plusplus @ 946bebd)"
+        }
+      ],
+      "fork_sha": "1ad8aa7cd887e2d0e5fa44cedf80768a807fabf9",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "HPM-MVS_plusplus",
+      "path": "benchmark/methods/HPM-MVS_plusplus",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/CLinvx/HPM-MVS_plusplus",
+      "upstream_base": "946bebdba367c567a4b64220d4d7e8622cdc3a05"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations. The committed JetBrains `.idea/` project is developer-specific state of the same kind, is not referenced by the build and is not documented.",
+          "reversible": "no",
+          "sha": "0b383ef27651269a80f8547c5f580450efd895c7",
+          "subject": "interface: ignore build output and editor state, and drop the committed .idea project",
+          "upstream_ref": ".idea/ (RongxuanTan/MP-MVS @ 17e3c05); .gitignore is a new file"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`src/utility.cpp` and `src/PatchMatch.cpp` use `std::ifstream` and `std::ofstream` but relied on `<fstream>` arriving transitively through another header. Libstdc++ 14 no longer provides it there, so both translation units fail to compile. The include is added where it is used.",
+          "reversible": "no",
+          "sha": "d56fb562f2958068bb68519557476e5e64ebbea2",
+          "subject": "compat: include <fstream> where the file streams are used",
+          "upstream_ref": "src/utility.cpp:1; src/PatchMatch.cpp:1 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "The released script pins `CUDA_TOOLKIT_ROOT_DIR` to `/usr/local/cuda-11.0` and requires exactly CUDA >= 11.0 through FindCUDA; neither the path nor the deprecated FindCUDA version check works with the CUDA 12.8 toolkit in the benchmark image. `check_language(CUDA)` / `enable_language(CUDA)` uses the compiler the toolchain provides. `find_package(Threads)` is added because the sources spawn std::thread and were relying on FindCUDA to pull pthread in.",
+          "reversible": "no",
+          "sha": "866f6c06942d1538247c01132ab747c268256f1d",
+          "subject": "compat: discover CUDA through the toolchain instead of a hardcoded 11.0 path",
+          "upstream_ref": "CMakeLists.txt:8-12 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`include/ProjectPath.h` is a generated file that was committed containing `#define PROJECT_PATH \"/home/xuan/MP-MVS\"`, an absolute path on the original author's machine, and `configure_file` rewrites it inside the source tree at configure time, which fails when the sources are mounted read-only. The path is replaced by a command-line argument in the following commit.",
+          "reversible": "no",
+          "sha": "257b993f52dbb81ec3d283b7f5fbb1b37748e5ac",
+          "subject": "compat: remove the generated ProjectPath.h and its hardcoded /home/xuan/MP-MVS",
+          "upstream_ref": "CMakeLists.txt:5-6; include/ProjectPath.h; include/ProjectPath.h.in; include/main.h:22 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "io",
+          "deviation": "interface",
+          "rationale": "The released binary takes no arguments at all: the dataset comes from `input_folder` inside a config file whose location was baked in at build time, and results are written to `<input_folder>/MPMVS` regardless of what the config says. The harness mounts one dataset per run at a path it chooses and needs the results in a directory it can address, so both must be arguments. The output directory name `MP_MVS` differs from upstream's `MPMVS`; that name is recorded in methods.yaml because the harness depends on it.",
+          "reversible": "no",
+          "sha": "59c614d4c35e7e5ff5f4f74e0f67fccece30188d",
+          "subject": "interface: take the dataset folder and the config file from the command line",
+          "upstream_ref": "main, src/main.cpp:5-10; RunFusion, src/PatchMatch.cpp:330; PatchMatchCUDA::PatchMatchInit, src/PatchMatch.cpp:946; PatchMatchCUDA::CudaMemInit, src/PatchMatch.cpp:1055 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "io",
+          "deviation": "compat",
+          "rationale": "The released code hardcodes an absolute path on the original author's machine, which does not exist in the benchmark image, so `mkdir` fails and every `writeDepthDmb` in this function opens a null `FILE*`. The destination has to follow the output folder the harness chooses. This function only runs when the four debug switches in `config/config.yaml` are on; those keep their upstream values.",
+          "reversible": "no",
+          "sha": "e168d16df6a7c9eb94edd05c8137be67c64917cd",
+          "subject": "compat: write the debug depth maps under the output folder",
+          "upstream_ref": "saveDmbAsJpg, src/utility.cpp:482-500 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The released script sets `CMAKE_BUILD_TYPE` to `Debug` unconditionally, so MP-MVS as published is compiled with `-O0 -g` while every other method in the comparison is built optimised. The harness passes `-DCMAKE_BUILD_TYPE=Release` on the command line, which the hardcoded value overrode. This is a large timing deviation from the method as released and is recorded as one: MP-MVS is measured optimised, not as its own CMake script would have built it.",
+          "reversible": "no",
+          "sha": "9b90250b69f335ca94561588e13acbc079403810",
+          "subject": "build: stop forcing a Debug build",
+          "upstream_ref": "CMakeLists.txt:3 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The preceding commits enable the CUDA language but the target was still created by `cuda_add_executable`, which FindCUDA leaves in scope through the OpenCV package. That macro reads only `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_FLAGS` and `CMAKE_CUDA_ARCHITECTURES`, so MP-MVS was the one method in the comparison compiled without `--use_fast_math` and without `--maxrregcount=128`, and for nvcc's default architecture rather than the benchmark GPU's. Both change device floating-point results and occupancy, so no MP-MVS number was comparable with the rest of the table. The upstream `-gencode arch=compute_80,code=sm_80` is not restored: the architecture is supplied by the harness so that every method targets the same one.",
+          "reversible": "no",
+          "sha": "d0a3091e7d7cb8af920bd32886e6bd3ce93eb797",
+          "subject": "build: build CUDA through the CUDA language so the nvcc flags are honoured",
+          "upstream_ref": "CMakeLists.txt:20,54 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script compiles both host and device code as C++11. The harness needs `std::filesystem` for the paths it passes in, and the rest of the comparison is built as C++20, so the standard is raised for both languages and pinned through CMake rather than through a `-std` flag added by hand. `CMAKE_CXX_EXTENSIONS OFF` keeps the host compiler on the standard dialect. Changing the standard changes which library and language rules apply and is not assumed to be performance-neutral.",
+          "reversible": "no",
+          "sha": "bbc5e9544b0278a88a802a9515154b8b84ebae69",
+          "subject": "build: raise the language standard to C++20",
+          "upstream_ref": "CMakeLists.txt:20,25 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components MP-MVS actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries. Unlike the ACM forks MP-MVS also needs highgui: `GetHist` calls `cv::namedWindow`, `cv::imshow` and `cv::waitKey` (src/utility.cpp:350-352).",
+          "reversible": "no",
+          "sha": "7aae4ed10d0e004022b9f76ac17e44f5b1003dc4",
+          "subject": "build: request only the OpenCV components MP-MVS uses",
+          "upstream_ref": "CMakeLists.txt:9 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "`writeDepthDmb` opens its target with `fopen(..., \"wb\")` and writes through the returned pointer without checking it. When the parent directory does not exist `fopen` returns NULL and the four `fwrite` calls dereference it, so the released code segfaults instead of reporting a missing directory. Upstream never hit this because every caller wrote into a directory some earlier stage had created; the harness lets the output folder be a fresh path. Creating the directory first leaves the behaviour unchanged whenever it already exists.",
+          "reversible": "no",
+          "sha": "782af68c80e64a27d08d1e2838eb5216fc23b782",
+          "subject": "bugfix: create the parent directory before writing a depth map",
+          "upstream_ref": "writeDepthDmb, src/utility.cpp:227-232 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "none",
+          "deviation": "bugfix",
+          "rationale": "`SaveDmb` is declared to return `bool` but the successful path falls off the end of the function, which is undefined behaviour; the early-exit paths above it do return. Every call site discards the result, so returning `true` on success cannot change what the program computes, but the undefined-behaviour path is removed.",
+          "reversible": "no",
+          "sha": "f156027cd1cfb5a30f934d371580c980db7abb18",
+          "subject": "bugfix: return a value from SaveDmb",
+          "upstream_ref": "SaveDmb, src/utility.cpp:462-465 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "`np.asscalar` was deprecated in NumPy 1.16 and removed in NumPy 1.23, so the shipped converter raises AttributeError on any NumPy the benchmark image can install. `ndarray.item()` is the documented replacement and returns the same Python scalar.",
+          "reversible": "no",
+          "sha": "fe7c75d3fc7f5dd73c78f36e943772dcda8b9ba0",
+          "subject": "compat: replace np.asscalar with ndarray.item in the shipped converter",
+          "upstream_ref": "colmap2mvsnet_acm.py:374 (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods. MP-MVS's own Time class covers only the two ProcessProblem loops -- not the config read, the pair list, the sky filter, fusion or the PLY write -- so the number it prints is not the run and cannot be compared with anything.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "cb586dae8b5e47b816d8ee45b8d92bac558d9438",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main (src/main.cpp); ProcessProblem, RunFusion, StoreColorPlyFileBinaryPointCloud (src/PatchMatch.cpp); PatchMatchCUDA::Run (src/PatchMatch.cu) (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, so leaving it enabled would charge some implementations for I/O the others never do and make the runtime comparison partly a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "399d137f22166b5c6ca7ca9e40f95a5107b5ecfb",
+          "subject": "normalization: add --no-debug-output to suppress the JPEG debug output",
+          "upstream_ref": "the four Save* keys in config/config.yaml and their use in saveDmbAsJpg (src/utility.cpp:486-525, called from src/main.cpp:66); the costs.jpg and triangulation.png writes in ProcessProblem (src/PatchMatch.cpp:600, 629) (RongxuanTan/MP-MVS @ 17e3c05)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The canonical phase scene_scan denotes a pass over the input images (ACMM ComputeMultiScaleSettings, APD CheckImages/ComputeRoundNum). MP-MVS has no such pass; its config read is not comparable work and is left unspanned so the cross-method table is not misleading (author decision D21, judgment call 12).",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "0f792f27241498cb5d5fdaa3055f8c9bdc4301e8",
+          "subject": "instrumentation: drop the scene_scan span around the config read",
+          "upstream_ref": "main, readConfig (src/main.cpp) (RongxuanTan/MP-MVS @ 17e3c05)"
+        }
+      ],
+      "fork_sha": "0f792f27241498cb5d5fdaa3055f8c9bdc4301e8",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's converter; author runs the fork's own.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "none",
+          "class": "interface",
+          "description": "The harness supplies the config file location as the second argument ({config} -> config_path). Recorded here because the choice of which config file a run uses lives in the harness, not in the fork, and the parameters in it belong in the run record.",
+          "reversible": false
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "MP-MVS",
+      "path": "benchmark/methods/MP-MVS",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/RongxuanTan/MP-MVS",
+      "upstream_base": "17e3c05e9706ce9735e466756492f9967238afff"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "compat",
+          "rationale": "The released script sets CMAKE_C_COMPILER and CMAKE_CXX_COMPILER to /usr/bin/gcc and /usr/bin/g++ inside the CMakeLists, which silently overrides the -DCMAKE_CXX_COMPILER the harness passes and would compile DPE-MVS with a different host compiler than every other method in the comparison. The compiler is now the toolchain's decision.",
+          "reversible": "no",
+          "sha": "c14e6d880840c24c3df671b57aa760bfbae5ff52",
+          "subject": "compat: stop pinning the C and C++ compilers to /usr/bin/gcc",
+          "upstream_ref": "DPE-MVS/CMakeLists.txt:1-2 (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "none",
+          "deviation": "compat",
+          "rationale": "Boost is not installed in the benchmark image and adding it would make the toolchain of one method differ from the rest. `std::filesystem` is part of the C++17 standard library that clang-18 already provides and is semantically equivalent for every use here: `path`, directory creation and file streams. Only the spelling changes. This includes the `path(\"complex.jpg\")` site inside the `DEBUG_COMPLEX` block, which upstream ships enabled.",
+          "reversible": "no",
+          "sha": "fc0bba4ee80b65902fa512e021ecccbdad564998",
+          "subject": "compat: replace Boost.Filesystem with the standard <filesystem>",
+          "upstream_ref": "main.h:33,49,110-111; DPE.cpp; DPE.h; main.cpp; DPE.cu:3156 (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "The released script requires CMake 2.8, Boost and a hardcoded sm_86, which is not the benchmark GPU, and pins the device standard to c++14 while the host sources need C++20. Targets created by `cuda_add_executable` are compiled by FindCUDA, which reads `CUDA_NVCC_FLAGS` and ignores both `CMAKE_CUDA_ARCHITECTURES` and `CMAKE_CUDA_FLAGS`, so moving the flags without moving the target macro would have silently dropped --use_fast_math and --maxrregcount=128 as well as the architecture. Both are moved together.",
+          "reversible": "no",
+          "sha": "e1e11c1acfa011223b17f03d96c6c9b198d6a764",
+          "subject": "build: build CUDA through the CUDA language, drop Boost and raise the standard to C++20",
+          "upstream_ref": "DPE-MVS/CMakeLists.txt (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "timing,memory",
+          "deviation": "build",
+          "rationale": "The benchmark image builds OpenCV with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz as static libraries. Requesting only the components DPE-MVS actually uses keeps the link line and the resulting binary minimal, so that link-time differences between methods do not come from unused static libraries.",
+          "reversible": "no",
+          "sha": "b51cd7ee5014d01d3faa404b3dfbdd1ff53f7c4a",
+          "subject": "build: request only the OpenCV components DPE-MVS uses",
+          "upstream_ref": "DPE-MVS/CMakeLists.txt:8 (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "io",
+          "deviation": "interface",
+          "rationale": "`diffuse_blue/diffuse_green/diffuse_red` are non-standard PLY property names that the evaluator and PCL's PLY reader do not recognise, which makes the fused cloud unloadable for inspection. The colours themselves are unchanged.",
+          "reversible": "no",
+          "sha": "a33319da71d183629f422c2efac105e5874e1227",
+          "subject": "interface: rename the PLY colour properties to the standard names",
+          "upstream_ref": "ExportPointCloud, DPE.cpp:543-570 (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "1f0de8713a84bd9c7aa193569b3322a0e6e38690",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "`CUDA_SEPARABLE_COMPILATION ON` was added by this fork; upstream never asked for it and the project has a single .cu translation unit, so nothing needs cross-translation-unit device linking. Relocatable device code inhibits whole-program inlining and changes register allocation, which is a real performance knob in a study about implementation overhead, and only four of the forks carried it. Removing it makes every method compile whole-program, as upstream released them. Verified to still build and to produce an sm_75 binary.",
+          "reversible": "no",
+          "sha": "6959e960a65f600d1b0df6897ed3b0082437ab11",
+          "subject": "build: stop compiling device code as relocatable device code",
+          "upstream_ref": "CMakeLists.txt (no such property upstream)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods. DPE-MVS times the whole of ProcessProblem, the EdgeSegment call and the RunPatchMatch prologue, none of which separates image loading, upload, propagation, prior fitting and disk writes. A vendored header-only tracer keeps the measurement inside the measured process without linking anything new, writes to its own file so stdout and stderr stay byte-identical to the uninstrumented build, and disappears entirely under -DBENCH_PHASES=0 so the instrumentation's own cost can be measured as a paired result.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "2bd5e48759ef29891d7543a1b8d47d5f28362be0",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main, GenerateSampleList, CheckImages, ComputeRoundNum, GetProblemEdges, ProcessProblem (main.cpp); RunFusion, ExportPointCloud (DPE.cpp); DPE::RunPatchMatch (DPE.cu) (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "timing,io",
+          "deviation": "normalization",
+          "rationale": "Debug artefact output is on by default in several methods and off in others, in wildly different volumes, and DPE-MVS's is by far the largest; leaving it enabled would charge this implementation for I/O and for a second EdgeSegment run that the other methods never do, turning part of the runtime comparison into a comparison of debug verbosity. R-EXP-11 therefore requires it disabled in every configuration through a per-fork flag, with the binary's own default left at the upstream behaviour so the pair can be measured in the pilot.",
+          "reversible": "flag --no-debug-output",
+          "sha": "e25b80c3951acf01ccca384e96ca982b8a6c3aac",
+          "subject": "normalization: add --no-debug-output to suppress the debug image writes",
+          "upstream_ref": "Problem::show_medium_result (main.h:114) and its three use sites in GetProblemEdges and ProcessProblem (main.cpp:105, 125, 189); the DEBUG_COMPLEX block in DPE::RunPatchMatch (DPE.cu:3155) (M3phist0/DPE-MVS @ e1ff7e3)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The ten forks must emit their phase traces through one identical header, otherwise a difference in the tracer itself becomes a difference in the numbers it produces. Keeping the copies identical is what makes the overhead measured once in the pilot valid for every method.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES (run)",
+          "sha": "5f5a8bacfc912acac42a62c020e3269079ea3be2",
+          "subject": "instrumentation: allow a phase span to be closed before its scope ends",
+          "upstream_ref": "none (file added by this fork; see its instrumentation commit)"
+        }
+      ],
+      "fork_sha": "5f5a8bacfc912acac42a62c020e3269079ea3be2",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "normalization",
+          "description": "norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the scene needs it, then for every method) instead of the fork's own converter, which pads AND re-encodes AND optionally rescales. author runs the fork's own converter.",
+          "reversible": "configuration author"
+        },
+        {
+          "affects": "quality,timing",
+          "class": "normalization",
+          "description": "Zero-padding of every image to the scene maximum, required by CheckImages().",
+          "reversible": "flag --padding"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "norm10: converter emits 10 source views instead of the shipped 20.",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "Debug artefact output disabled in both configurations by passing --no-debug-output (R-EXP-11). The fork's own default is the upstream behaviour; see global_deviations for what each method writes.",
+          "reversible": "flag --no-debug-output"
+        }
+      ],
+      "name": "DPE-MVS",
+      "path": "benchmark/methods/DPE-MVS",
+      "provenance": "published-reference",
+      "status": "active",
+      "upstream": "https://github.com/M3phist0/DPE-MVS",
+      "upstream_base": "e1ff7e3db12d83b2b8685beef1055b6de5801505"
+    },
+    {
+      "fork_deviations": [],
+      "fork_sha": "5b2b31c02941cfa28808b4e37f06a87e8dc0f2d9",
+      "harness_deviations": [],
+      "name": "DVP-MVS",
+      "path": "benchmark/methods/DVP-MVS",
+      "provenance": "published-reference",
+      "status": "excluded",
+      "upstream": "https://github.com/ZhenlongYuan/DVP-MVS",
+      "upstream_base": "5b2b31c02941cfa28808b4e37f06a87e8dc0f2d9"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "build",
+          "rationale": "The samples call `cv::viz::writeCloud` (samples/app_patch_match_mvs.cpp:164), so the build needs OpenCV's viz module and therefore VTK and Qt5; Eigen3 is likewise used but never requested. The released script relies on those packages being pulled in transitively by a shared OpenCV, which does not happen with the statically built OpenCV in the benchmark image.",
+          "reversible": "no",
+          "sha": "34e9a01e9567aa9bc28953e0d98e68e78704d03e",
+          "subject": "build: find VTK, Qt5 and Eigen3 explicitly",
+          "upstream_ref": "CMakeLists.txt (fixstars/cuda-multi-view-stereo @ 2efda94)"
+        },
+        {
+          "affects": "none",
+          "deviation": "interface",
+          "rationale": "Keeps build directories and editor state out of the fork so that the deviation verifier and `git log upstream-base..HEAD` see only real source deviations.",
+          "reversible": "no",
+          "sha": "72218adb5870b25c0be09fe8683111292e9132e2",
+          "subject": "interface: ignore build output and editor state",
+          "upstream_ref": "(new file)"
+        },
+        {
+          "affects": "timing",
+          "deviation": "instrumentation",
+          "rationale": "The harness needs a per-phase timing breakdown (SPEC R-TIM-01, R-TIM-04, R-TIM-05) that is comparable across all ten campaign methods. CUMVS is the prior-art data point for how much of the ACM family's runtime is implementation overhead, so its phase table is the one that has to line up with the others; its two shipped cv::TickMeter pairs have their prints commented out and cover neither loading, nor fusion, nor the PLY write.",
+          "reversible": "flag -DBENCH_PHASES=0 (compile), env MVS_BENCH_PHASES and MVS_BENCH_SYNC (run)",
+          "sha": "cff89eb6c74cf37f05d5ea6aade55cc68e590007",
+          "subject": "instrumentation: emit phase boundaries through bench_timer.h",
+          "upstream_ref": "main (samples/app_patch_match_mvs.cpp); PatchMatchMVSImpl::compute and PatchMatchMVSImpl::estimateDepth (modules/cuda_multi_view_stereo/src/cuda_multi_view_stereo.cpp) (fixstars/cuda-multi-view-stereo @ 2efda94)"
+        }
+      ],
+      "fork_sha": "cff89eb6c74cf37f05d5ea6aade55cc68e590007",
+      "harness_deviations": [
+        {
+          "affects": "none",
+          "class": "interface",
+          "description": "Preprocessing is app_initialize_ETH3D rather than the shared converter, because CUMVS consumes a different input format entirely. Both do view selection and both are excluded from the measured region, which is comparable - but it must be stated, not assumed.",
+          "reversible": false
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "\"norm10: --max-neighbors=10 passed to app_initialize_ETH3D (the shipped value is 20), the CUMVS-side equivalent of the shared converter's neighbour count.\"",
+          "reversible": "flag --max-neighbors=20"
+        },
+        {
+          "affects": "none",
+          "class": "normalization",
+          "description": "R-EXP-11 (debug artefact output off) needs no action for this method: it writes no debug artefacts. The harness must NOT pass --no-debug-output to it -- the binary has no such flag.",
+          "reversible": false
+        }
+      ],
+      "name": "CUMVS",
+      "path": "benchmark/methods/cuda-multi-view-stereo",
+      "provenance": "third-party-optimization",
+      "status": "active",
+      "upstream": "https://github.com/fixstars/cuda-multi-view-stereo",
+      "upstream_base": "2efda9410ced0806b8f0ee3735cd5f14a6d4c99f"
+    }
+  ]
+}
