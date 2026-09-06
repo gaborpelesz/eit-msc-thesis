@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from deviations import manifest as mf
+from deviations.render import document as _deviations_document
 
 RECORD_SCHEMA_VERSION = 1
 
@@ -67,55 +68,16 @@ def finished_run_dirs(campaign_dir):
     return sorted(p for p in campaign_dir.iterdir() if is_run_key_dir(p))
 
 
+def deviations_document(manifest, repo_root):
+    """The deviations.json embedded per campaign: the rendered document stamped
+    with the campaign's start time (`deviations render` leaves it null)."""
+    return _deviations_document(manifest, repo_root, generated_at=datetime.now(timezone.utc))
+
+
 def iter_records(campaign_dir):
     for directory in finished_run_dirs(campaign_dir):
         with open(directory / "run.json") as f:
             yield json.load(f)
-
-
-def deviations_document(manifest, repo_root):
-    """The generated `deviations.json` embedded in every run record.
-
-    Built from methods.yaml plus each fork's `upstream-base..HEAD` log, which
-    CLAUDE.md defines as the exhaustive deviation list.
-    """
-    repo_root = Path(repo_root)
-    document = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "manifest_version": manifest.get("version"),
-        "audit_source": manifest.get("audit_source"),
-        "audit_date": str(manifest.get("audit_date")),
-        "global_deviations": manifest.get("global_deviations") or [],
-        "methods": [],
-    }
-    for entry in manifest.get("methods") or []:
-        fork = repo_root / entry["path"]
-        head = mf.head_sha(fork) if mf.is_initialised_submodule(fork) else None
-        commits = mf.commits_since(fork, "upstream-base") if head else None
-        document["methods"].append(
-            {
-                "name": entry["name"],
-                "provenance": entry.get("provenance"),
-                "status": entry.get("status", "active"),
-                "path": entry["path"],
-                "upstream": entry.get("upstream"),
-                "upstream_base": entry.get("upstream_base"),
-                "fork_sha": head,
-                "harness_deviations": entry.get("harness_deviations") or [],
-                "fork_deviations": [
-                    {
-                        "sha": commit["sha"],
-                        "subject": commit["subject"],
-                        **{
-                            key.lower().replace("-", "_"): value
-                            for key, value in mf.parse_trailers(commit["message"]).items()
-                        },
-                    }
-                    for commit in (commits or [])
-                ],
-            }
-        )
-    return document
 
 
 def invocation_context(spec, entry, run, result=None):
