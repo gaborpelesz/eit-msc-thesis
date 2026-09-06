@@ -259,3 +259,55 @@ def test_an_interrupt_does_not_leave_the_container_holding_the_gpu(
 
     calls = (tmp_path / "docker-state" / "calls.log").read_text().splitlines()
     assert any(call.startswith("rm -f 0123456789abcdef") for call in calls)
+
+
+def test_an_uninstrumented_run_writes_no_trace_and_is_still_ok(
+    write_spec, spec_dict, manifest, tmp_path, fake_docker
+):
+    """R-TIM-09: the off half of the timer pair is a normal, complete run."""
+    spec_dict["methods"] = ["ACMM"]
+    spec_dict["widths"] = [3200]
+    spec_dict["repeats"] = 1
+    spec_dict["phase_timer"] = False
+    spec = sp.load(write_spec(spec_dict, "notimer.yaml"), manifest)
+    scene = spec.raw_scene_dir("courtyard", 3200)
+    (scene / "images").mkdir(parents=True)
+    (scene / "images" / "one.jpg").write_bytes(b"\xff" * 4096)
+    spec.ground_truth_mlp("courtyard", 3200).parent.mkdir(parents=True, exist_ok=True)
+    spec.ground_truth_mlp("courtyard", 3200).write_text("<MeshLabProject/>")
+    spec.campaign_dir.mkdir(parents=True)
+
+    _, final, record = _run_once(spec, manifest, fake_docker)
+
+    assert record["status"] == "ok"
+    assert record["instrumented"] is False
+    assert not (final / "phases.txt").exists()
+    assert not any(p["source"] == "method" for p in record["phases"])
+    # The harness's own spans are unaffected: preprocessing is still timed.
+    assert record["preprocess_convert_s"] > 0
+    assert not any("MVS_BENCH" in token for token in record["command"])
+
+
+def test_debug_output_upstream_reaches_the_measured_container(
+    write_spec, spec_dict, manifest, tmp_path, fake_docker, monkeypatch
+):
+    monkeypatch.setenv("FAKE_DOCKER_OUTPUT_PLY", "APD/APD.ply")
+    spec_dict["methods"] = ["APD-MVS"]
+    spec_dict["widths"] = [3200]
+    spec_dict["repeats"] = 1
+    spec_dict["debug_output"] = "upstream"
+    spec = sp.load(write_spec(spec_dict, "upstream.yaml"), manifest)
+    scene = spec.raw_scene_dir("courtyard", 3200)
+    (scene / "images").mkdir(parents=True)
+    (scene / "images" / "one.jpg").write_bytes(b"\xff" * 4096)
+    spec.ground_truth_mlp("courtyard", 3200).parent.mkdir(parents=True, exist_ok=True)
+    spec.ground_truth_mlp("courtyard", 3200).write_text("<MeshLabProject/>")
+    spec.campaign_dir.mkdir(parents=True)
+
+    _, _, record = _run_once(spec, manifest, fake_docker)
+    assert record["status"] == "ok"
+    assert "--no-debug-output" not in record["command"]
+    assert record["debug_output"]["normalization_in_force"] is False
+    # R-ART-02 measures the footprint before the scratch tree goes, which is
+    # what the debug arm is compared on.
+    assert record["intermediates_bytes"] > 0

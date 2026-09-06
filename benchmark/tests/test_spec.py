@@ -130,3 +130,33 @@ def test_equal_size_check_reads_the_scene_on_disk(write_spec, spec_dict, manifes
     _write_calibration(mixed, {"0": (6205, 4134), "1": (6203, 4134)}, ["0", "1", "0"])
     with pytest.raises(sp.SpecError, match="2 image sizes"):
         sp.load(write_spec(spec_dict, "mixed.yaml"), manifest)
+
+
+def test_debug_output_defaults_to_off_and_refuses_anything_else(
+    write_spec, spec_dict, manifest
+):
+    assert sp.load(write_spec(spec_dict), manifest).debug_output == "off"
+
+    spec_dict["debug_output"] = "upstream"
+    assert sp.load(write_spec(spec_dict, "up.yaml"), manifest).debug_output == "upstream"
+
+    spec_dict["debug_output"] = "on"
+    with pytest.raises(sp.SpecError, match="debug_output"):
+        sp.load(write_spec(spec_dict, "bad.yaml"), manifest)
+
+
+def test_debug_output_is_a_known_key_not_spec_extra(write_spec, spec_dict, manifest):
+    spec_dict["debug_output"] = "upstream"
+    spec = sp.load(write_spec(spec_dict), manifest)
+    assert "debug_output" not in spec.extra
+
+
+def test_unquoted_yaml_off_is_refused_with_the_fix(tmp_path, spec_dict, manifest):
+    # YAML 1.1 resolves a bare `off` to False; the operator must not silently
+    # get the `upstream` arm's opposite of what they wrote.
+    path = tmp_path / "yaml11.yaml"
+    import yaml as _yaml
+
+    path.write_text(_yaml.safe_dump(spec_dict, sort_keys=False) + "\ndebug_output: off\n")
+    with pytest.raises(sp.SpecError, match='write it quoted'):
+        sp.load(path, manifest)

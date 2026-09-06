@@ -138,13 +138,23 @@ def invocation_context(spec, entry, run, result=None):
         preprocess = preprocess or plan["preprocess"]["argv"]
         method_argv = method_argv or plan["measured"]["argv"]
     argv = [str(t) for t in list(preprocess) + list(method_argv)]
+    template = [str(t) for t in (entry.get("invocation") or [])]
+    executed = {t.split("=", 1)[0] for t in argv if t.startswith("-")}
     return {
-        "flags": sorted({t.split("=", 1)[0] for t in argv if t.startswith("-")}),
+        "flags": sorted(executed),
+        # Flags methods.yaml puts in this method's invocation that this run did
+        # not execute -- today only `debug_output: upstream` can produce one.
+        # Their absence is a deliberate setting, not an inapplicable flag, and
+        # the in-force reason has to say so.
+        "removed_flags": sorted(
+            {t.split("=", 1)[0] for t in template if t.startswith("-")} - executed
+        ),
         # The shared converter is the one normalization whose presence is not a
         # flag: CUMVS preprocesses with its own initializer under every
         # configuration, so the substitution never happens for it.
         "shared_converter": any("colmap2mvsnet_acm_perf" in t for t in preprocess),
         "preprocess_argv": list(preprocess),
+        "debug_output": spec.debug_output,
     }
 
 
@@ -171,6 +181,12 @@ def normalization_in_force(deviation, context, run):
         flag = text.split(None, 1)[1].split("=", 1)[0].split()[0]
         if flag in context["flags"]:
             return True, f"{flag} is in the executed argv"
+        if flag in context.get("removed_flags", ()):
+            return False, (
+                f"{flag} is in this method's methods.yaml invocation but was removed "
+                f"from this run's argv by the specification (`debug_output: "
+                f"{context.get('debug_output')}`)"
+            )
         return False, f"{flag} is not in the executed argv"
     return False, f"unrecognised reversal {text!r}; not claimed to be in force"
 
@@ -224,6 +240,7 @@ def parameters(spec, manifest, entry, run, repo_root):
         "invocation": entry.get("invocation"),
         "config_file": None,
         "phase_timer": spec.phase_timer,
+        "debug_output": spec.debug_output,
         "method_env": dict(spec.method_env),
         "seed_exposed": False,  # R-STA-04: no fork exposes one; recorded, not set.
     }
@@ -301,6 +318,9 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
     `read_json_auto` unifies every record of a campaign without preprocessing
     (R-STO-06) no matter how the evidence of one failure differs from another.
     """
+    from . import runner as rn
+
+    measured_env = rn.method_env(spec)
     telemetry = result.get("telemetry") or {}
     quality = result.get("quality")
     primary = None
@@ -363,7 +383,20 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
         "phases": result.get("phases") or [],
         "phases_by_pass": result.get("phases_by_pass") or [],
         "phase_trace_errors": result.get("phase_trace_errors") or [],
+        # R-TIM-09: false means the measured process was given no
+        # MVS_BENCH_PHASES, so it wrote no trace and `phases` holds only the
+        # harness's own spans. An absent phases.txt is then expected, not a
+        # failure.
         "phase_timer": spec.phase_timer,
+        "instrumented": spec.phase_timer,
+        # R-EXP-11: which half of the debug-artefact pair this run is, and why.
+        "debug_output": rn.debug_output_state(spec, entry),
+        # R-TIM-08: the whole environment the measured process was given, as a
+        # string so that DuckDB unifies campaigns that set different keys, plus
+        # the one key the SYNC pair turns on, flat enough to group by.
+        "method_env_json": json.dumps(measured_env, sort_keys=True),
+        "mvs_bench_sync": measured_env.get("MVS_BENCH_SYNC"),
+        "intermediates_bytes": result.get("intermediates_bytes"),
         "sample_interval_ms": telemetry.get("sample_interval_ms"),
         "sample_count": telemetry.get("sample_count"),
         "sampler_missed_ticks": telemetry.get("missed_ticks"),

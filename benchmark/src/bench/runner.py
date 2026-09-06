@@ -48,6 +48,9 @@ CUDA_OOM_MARKERS = (
 HOST_OOM_MARKERS = ("std::bad_alloc", "cannot allocate memory", "out of memory: killed")
 SEGFAULT_MARKERS = ("segmentation fault", "sigsegv")
 
+# The shared flag of R-EXP-11, as methods.yaml spells it in seven invocations.
+DEBUG_OUTPUT_FLAG = "--no-debug-output"
+
 
 class RunnerError(Exception):
     pass
@@ -135,10 +138,49 @@ def placeholder_values(spec, entry, run):
     }
 
 
+def debug_output_state(spec, entry):
+    """R-EXP-11 for one run: was the debug-artefact normalization applied?
+
+    Seven of the ten campaign methods take `--no-debug-output`; ACMH and ACMM
+    write no debug artefacts and CUMVS's OpenCV CommandLineParser rejects the
+    unknown key, so for those three the setting is inapplicable rather than
+    reversed, and the record says which of the two it is.
+    """
+    has_flag = DEBUG_OUTPUT_FLAG in (entry.get("invocation") or [])
+    passed = has_flag and spec.debug_output == "off"
+    if not has_flag:
+        reason = (
+            f"{entry.get('name')}'s invocation in methods.yaml carries no "
+            f"{DEBUG_OUTPUT_FLAG}, so `debug_output` changes nothing for it "
+            "and R-EXP-11 needs no action"
+        )
+    elif passed:
+        reason = f"{DEBUG_OUTPUT_FLAG} is in the executed argv; the debug writes are skipped"
+    else:
+        reason = (
+            f"`debug_output: upstream` removed {DEBUG_OUTPUT_FLAG} from the "
+            "invocation: this run writes the debug artefacts its authors shipped "
+            "it writing, and the R-EXP-11 normalization is NOT in force"
+        )
+    return {
+        "setting": spec.debug_output,
+        "method_has_flag": has_flag,
+        "flag_passed": passed,
+        "normalization_in_force": passed,
+        "reason": reason,
+    }
+
+
 def resolve_invocation(spec, entry, run):
     values = placeholder_values(spec, entry, run)
     argv = []
-    for token in entry["invocation"]:
+    tokens = list(entry["invocation"])
+    if spec.debug_output == "upstream":
+        # The token, not a value: DPE-MVS's DEBUG_COMPLEX block is compiled in
+        # and guarded by this flag at run time, so dropping it restores the
+        # released behaviour of that guard too (methods.yaml, DPE-MVS).
+        tokens = [t for t in tokens if t != DEBUG_OUTPUT_FLAG]
+    for token in tokens:
         rendered = token.format(**values)
         if rendered == "":
             raise RunnerError(
@@ -257,6 +299,7 @@ def plan_commands(spec, entry, run, docker="docker"):
         "measured": {
             "argv": method_argv,
             "env": env,
+            "debug_output": debug_output_state(spec, entry),
             "docker": docker_run_argv(
                 spec,
                 run,
@@ -737,12 +780,16 @@ def discard_intermediates(spec, result, docker="docker"):
     """
     work_dir = Path(result["work_dir"]).resolve()
     root = Path(spec.paths["work_root"]).resolve()
+    # Measured before the tree goes: it is the run's whole on-disk footprint,
+    # and under `debug_output: upstream` the difference against the same run
+    # with the flag is what the debug artefacts cost in bytes (R-EXP-11).
+    size = sum(p.stat().st_size for p in work_dir.rglob("*") if p.is_file())
+    result["intermediates_bytes"] = size
     if spec.keep_intermediates:
         result.setdefault("notes", []).append(f"intermediates kept in {work_dir}")
         return result
     if root not in work_dir.parents:
         raise RunnerError(f"refusing to remove {work_dir}: it is not inside {root}")
-    size = sum(p.stat().st_size for p in work_dir.rglob("*") if p.is_file())
     try:
         shutil.rmtree(work_dir)
     except PermissionError:

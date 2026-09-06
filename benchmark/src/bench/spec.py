@@ -96,6 +96,7 @@ class Spec:
     initializer_args: dict
     method_env: dict
     phase_timer: bool
+    debug_output: str
     padding: str
     tolerances: list
     primary_tolerance: float
@@ -182,6 +183,25 @@ def load(path, manifest=None):
     initializer_args = dict(DEFAULT_INITIALIZER_ARGS)
     initializer_args.update(data.get("initializer_args") or {})
 
+    # R-EXP-11: `off` passes the shared --no-debug-output flag to every method
+    # whose invocation carries it; `upstream` removes the token, so the method
+    # writes the debug artefacts its authors shipped it writing. The pair is a
+    # measured result, not only a disclosure (deviation policy rule 1).
+    debug_output = data.get("debug_output", "off")
+    if isinstance(debug_output, bool):
+        # YAML 1.1 resolves a bare `off` to False, so an unquoted `debug_output:
+        # off` never reaches this function as the string the operator wrote.
+        raise SpecError(
+            f"{path}: `debug_output` was parsed as the YAML boolean "
+            f"{debug_output}; write it quoted, as `debug_output: \"off\"`"
+        )
+    debug_output = str(debug_output)
+    if debug_output not in ("off", "upstream"):
+        raise SpecError(
+            f"{path}: `debug_output` must be `off` (R-EXP-11 in force) or "
+            "`upstream` (the released behaviour)"
+        )
+
     padding = str(data.get("padding", "none"))
     if padding not in ("none", "all"):
         raise SpecError(
@@ -225,6 +245,7 @@ def load(path, manifest=None):
         initializer_args=initializer_args,
         method_env=dict(data.get("method_env") or {}),
         phase_timer=bool(data.get("phase_timer", True)),
+        debug_output=debug_output,
         padding=padding,
         tolerances=[float(t) for t in (data.get("tolerances") or DEFAULT_TOLERANCES)],
         primary_tolerance=float(
@@ -258,6 +279,7 @@ def load(path, manifest=None):
                 "initializer_args",
                 "method_env",
                 "phase_timer",
+                "debug_output",
                 "padding",
                 "tolerances",
                 "primary_tolerance",

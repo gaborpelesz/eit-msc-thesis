@@ -33,6 +33,14 @@ PHASE fusion END 2400000000
 """
 
 
+def container_env(argv):
+    return dict(
+        argv[index + 1].split("=", 1)
+        for index, token in enumerate(argv)
+        if token == "-e" and "=" in argv[index + 1]
+    )
+
+
 def mounts(argv):
     found = {}
     for index, token in enumerate(argv):
@@ -68,8 +76,12 @@ def do_run(argv):
         return 0
 
     out = mounted.get("/out")
-    if not os.environ.get("FAKE_DOCKER_NO_PHASES"):
-        (out / "phases.txt").write_text(PHASE_TRACE)
+    # The vendored bench_timer.h writes a trace only when MVS_BENCH_PHASES is
+    # set in the container, so a `phase_timer: false` run leaves none.
+    env = container_env(argv)
+    if env.get("MVS_BENCH_PHASES") and not os.environ.get("FAKE_DOCKER_NO_PHASES"):
+        # MVS_BENCH_FILE is a container path; /out is this mount.
+        (out / Path(env["MVS_BENCH_FILE"]).name).write_text(PHASE_TRACE)
     output_ply = os.environ.get("FAKE_DOCKER_OUTPUT_PLY")
     if output_ply:
         target = prepared / output_ply

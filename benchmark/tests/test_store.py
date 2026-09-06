@@ -293,3 +293,103 @@ def test_status_says_whether_an_in_flight_run_is_still_alive(tmp_path):
         "B__s__w1__author__r1": False,
         "C__s__w1__author__r1": None,
     }
+
+
+def test_debug_output_off_puts_the_r_exp_11_normalization_in_force(
+    write_spec, spec_dict, manifest
+):
+    spec_dict["methods"] = ["APD-MVS"]
+    spec = sp.load(write_spec(spec_dict), manifest)
+    entry = sp.method_entry(manifest, "APD-MVS")
+    run = sp.expand(spec)[0]
+
+    declared = st.declared_normalizations(manifest, entry, spec, run)
+    debug = [d for d in declared if d.get("reversible") == "flag --no-debug-output"]
+    assert debug and all(d["in_force"] for d in debug)
+    assert all("is in the executed argv" in d["in_force_reason"] for d in debug)
+
+
+def test_debug_output_upstream_records_the_normalization_as_not_in_force(
+    write_spec, spec_dict, manifest
+):
+    """R-EXP-11: the arm that measures the released behaviour has to say so."""
+    spec_dict["methods"] = ["APD-MVS"]
+    spec_dict["debug_output"] = "upstream"
+    spec = sp.load(write_spec(spec_dict), manifest)
+    entry = sp.method_entry(manifest, "APD-MVS")
+    run = sp.expand(spec)[0]
+
+    declared = st.declared_normalizations(manifest, entry, spec, run)
+    debug = [d for d in declared if d.get("reversible") == "flag --no-debug-output"]
+    assert debug and not any(d["in_force"] for d in debug)
+    reason = debug[0]["in_force_reason"]
+    assert "removed from this run's argv" in reason
+    assert "debug_output: upstream" in reason
+
+    record = _record(spec, manifest, run, _result())
+    assert record["debug_output"]["setting"] == "upstream"
+    assert record["debug_output"]["method_has_flag"] is True
+    assert record["debug_output"]["normalization_in_force"] is False
+    assert not any("--no-debug-output" in n for n in record["normalizations"])
+    assert json.loads(record["parameters_json"])["debug_output"] == "upstream"
+
+
+def test_a_method_with_no_debug_flag_says_the_setting_does_not_apply(
+    write_spec, spec_dict, manifest
+):
+    spec_dict["methods"] = ["ACMM"]
+    spec_dict["debug_output"] = "upstream"
+    spec = sp.load(write_spec(spec_dict), manifest)
+    run = sp.expand(spec)[0]
+    record = _record(spec, manifest, run, _result())
+    assert record["debug_output"]["method_has_flag"] is False
+    assert record["debug_output"]["normalization_in_force"] is False
+    assert "carries no --no-debug-output" in record["debug_output"]["reason"]
+
+
+def test_the_record_flags_an_uninstrumented_run(write_spec, spec_dict, manifest):
+    """R-TIM-09: the off half of the phase-timer pair is marked, not inferred."""
+    spec_dict["methods"] = ["ACMM"]
+    spec_dict["phase_timer"] = False
+    spec = sp.load(write_spec(spec_dict), manifest)
+    run = sp.expand(spec)[0]
+    result = _result()
+    result["phases"] = [
+        {"name": "preprocess.convert", "total_s": 3.0, "self_s": 3.0, "count": 1,
+         "unclosed": 0, "source": "harness"}
+    ]
+    result["phases_by_pass"] = []
+    record = _record(spec, manifest, run, result)
+    assert record["phase_timer"] is False
+    assert record["instrumented"] is False
+    assert record["method_env_json"] == "{}"
+    assert not any(p["source"] == "method" for p in record["phases"])
+    assert json.loads(record["parameters_json"])["phase_timer"] is False
+
+
+def test_the_record_flags_mvs_bench_sync(write_spec, spec_dict, manifest):
+    """R-TIM-08: the SYNC pair must be visible in the record, not only the spec."""
+    spec_dict["methods"] = ["CUMVS"]
+    spec_dict["method_env"] = {"MVS_BENCH_SYNC": "1"}
+    spec = sp.load(write_spec(spec_dict), manifest)
+    run = sp.expand(spec)[0]
+    record = _record(spec, manifest, run, _result())
+    assert record["mvs_bench_sync"] == "1"
+    env = json.loads(record["method_env_json"])
+    assert env["MVS_BENCH_SYNC"] == "1"
+    assert env["MVS_BENCH_PHASES"] == "1"
+    assert json.loads(record["parameters_json"])["method_env"] == {"MVS_BENCH_SYNC": "1"}
+
+    spec_dict["method_env"] = {}
+    off = sp.load(write_spec(spec_dict, "off.yaml"), manifest)
+    off_record = _record(off, manifest, sp.expand(off)[0], _result())
+    assert off_record["mvs_bench_sync"] is None
+
+
+def test_the_record_carries_the_runs_on_disk_footprint(write_spec, spec_dict, manifest):
+    spec = sp.load(write_spec(spec_dict), manifest)
+    run = sp.expand(spec)[0]
+    result = _result()
+    result["intermediates_bytes"] = 4096
+    assert _record(spec, manifest, run, result)["intermediates_bytes"] == 4096
+    assert _record(spec, manifest, run, _result())["intermediates_bytes"] is None

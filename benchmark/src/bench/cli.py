@@ -240,6 +240,7 @@ def cmd_run(args):
             print(f"run dir      : {spec.campaign_dir / run.key}")
             print(f"preprocess   : {' '.join(plan['preprocess']['docker'])}")
             print(f"measured     : {' '.join(plan['measured']['docker'])}")
+            print(f"debug output : {plan['measured']['debug_output']['reason']}")
             print(f"evaluation   : {' '.join(plan['evaluation']['docker'])}")
         print(
             f"\n{len(runs)} runs planned; nothing was executed and "
@@ -276,6 +277,14 @@ def cmd_run(args):
         for line in problems:
             print(line, file=sys.stderr)
         return 1
+
+    # A paired campaign differs from its partner only in these three settings,
+    # so a log that does not open with them cannot be told from the other arm.
+    print(
+        f"arms     phase_timer={spec.phase_timer} debug_output={spec.debug_output} "
+        f"method_env={json.dumps(spec.method_env, sort_keys=True)}",
+        flush=True,
+    )
 
     deviations = st.deviations_document(manifest, root)
     try:

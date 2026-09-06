@@ -113,3 +113,126 @@ def test_classification_records_its_evidence():
     )
     assert evidence["log_markers"] == ["cuda error: out of memory"]
     assert evidence["last_device_mem_bytes"] == 11 << 30
+
+
+def test_debug_output_upstream_removes_the_flag_from_the_invocation(
+    write_spec, spec_dict, manifest
+):
+    entry = sp.method_entry(manifest, "APD-MVS")
+    assert rn.DEBUG_OUTPUT_FLAG in entry["invocation"]
+
+    off = _spec(write_spec, spec_dict, manifest, methods=["APD-MVS"])
+    run = sp.expand(off)[0]
+    assert rn.DEBUG_OUTPUT_FLAG in rn.resolve_invocation(off, entry, run)
+
+    upstream = _spec(
+        write_spec, dict(spec_dict), manifest, debug_output="upstream", methods=["APD-MVS"]
+    )
+    argv = rn.resolve_invocation(upstream, entry, sp.expand(upstream)[0])
+    assert rn.DEBUG_OUTPUT_FLAG not in argv
+    # Only the flag goes; the method still gets its dataset.
+    assert argv == ["/sota/APD-MVS/build/APD", "/work/prepared"]
+
+
+def test_debug_output_upstream_removes_dpe_mvs_guard_flag(write_spec, spec_dict, manifest):
+    # DPE-MVS's DEBUG_COMPLEX block is compiled in and guarded by the flag at
+    # run time, so removing the token restores that guard's released behaviour.
+    spec = _spec(
+        write_spec, spec_dict, manifest, debug_output="upstream", methods=["DPE-MVS"]
+    )
+    entry = sp.method_entry(manifest, "DPE-MVS")
+    argv = rn.resolve_invocation(spec, entry, sp.expand(spec)[0])
+    assert rn.DEBUG_OUTPUT_FLAG not in argv
+    assert argv == ["/sota/DPE-MVS/DPE-MVS/build/DPE", "/work/prepared"]
+
+
+def test_debug_output_state_distinguishes_reversed_from_inapplicable(
+    write_spec, spec_dict, manifest
+):
+    off = _spec(write_spec, spec_dict, manifest)
+    upstream = _spec(write_spec, dict(spec_dict), manifest, debug_output="upstream")
+
+    with_flag = sp.method_entry(manifest, "APD-MVS")
+    without = sp.method_entry(manifest, "ACMM")
+
+    state = rn.debug_output_state(off, with_flag)
+    assert state == {
+        "setting": "off",
+        "method_has_flag": True,
+        "flag_passed": True,
+        "normalization_in_force": True,
+        "reason": state["reason"],
+    }
+    assert "skipped" in state["reason"]
+
+    state = rn.debug_output_state(upstream, with_flag)
+    assert state["method_has_flag"] and not state["flag_passed"]
+    assert not state["normalization_in_force"]
+    assert "NOT in force" in state["reason"]
+
+    for spec in (off, upstream):
+        state = rn.debug_output_state(spec, without)
+        assert not state["method_has_flag"]
+        assert not state["normalization_in_force"]
+        assert "carries no --no-debug-output" in state["reason"]
+
+
+def test_a_method_without_the_flag_is_invoked_identically_in_both_arms(
+    write_spec, spec_dict, manifest
+):
+    off = _spec(write_spec, spec_dict, manifest, methods=["ACMM"])
+    upstream = _spec(
+        write_spec, dict(spec_dict), manifest, debug_output="upstream", methods=["ACMM"]
+    )
+    entry = sp.method_entry(manifest, "ACMM")
+    run = sp.expand(off)[0]
+    assert rn.resolve_invocation(off, entry, run) == rn.resolve_invocation(upstream, entry, run)
+
+
+def test_phase_timer_false_gives_the_measured_container_no_trace_env(
+    write_spec, spec_dict, manifest
+):
+    on = _spec(write_spec, spec_dict, manifest, methods=["ACMM"])
+    assert rn.method_env(on) == {
+        "MVS_BENCH_PHASES": "1",
+        "MVS_BENCH_FILE": "/out/phases.txt",
+    }
+
+    off = _spec(write_spec, dict(spec_dict), manifest, methods=["ACMM"], phase_timer=False)
+    assert rn.method_env(off) == {}
+    command = rn.plan_commands(off, sp.method_entry(manifest, "ACMM"), sp.expand(off)[0])[
+        "measured"
+    ]["docker"]
+    assert not any("MVS_BENCH" in token for token in command)
+
+
+def test_method_env_reaches_the_measured_container(write_spec, spec_dict, manifest):
+    # R-TIM-08: CUMVS's two unsynchronised launches are attributed to the
+    # following span unless MVS_BENCH_SYNC is set.
+    spec = _spec(
+        write_spec,
+        spec_dict,
+        manifest,
+        methods=["CUMVS"],
+        method_env={"MVS_BENCH_SYNC": "1"},
+    )
+    entry = sp.method_entry(manifest, "CUMVS")
+    plan = rn.plan_commands(spec, entry, sp.expand(spec)[0])
+    assert plan["measured"]["env"]["MVS_BENCH_SYNC"] == "1"
+    command = plan["measured"]["docker"]
+    assert "MVS_BENCH_SYNC=1" in command
+    # Passed with -e, before the image name, or the runtime would not see it.
+    assert command.index("MVS_BENCH_SYNC=1") < command.index(spec.image)
+    assert command[command.index("MVS_BENCH_SYNC=1") - 1] == "-e"
+
+
+def test_missing_phase_trace_is_not_a_failure(tmp_path):
+    from bench import phases as ph
+
+    trace = ph.parse_file(tmp_path / "phases.txt")
+    assert trace.spans == []
+    assert ph.totals(trace) == []
+    # The absence is recorded as a parser note, and classification never reads it.
+    assert trace.errors and "no phase trace was written" in trace.errors[0]
+    status, _ = rn.classify(0, False, "", False, {})
+    assert status == "ok"
