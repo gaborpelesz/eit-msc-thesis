@@ -10,6 +10,7 @@ import pytest
 from bench import store as st
 from deviations import latex as tex
 from deviations import manifest as mf
+from conftest import braces_balance
 from deviations import render as rd
 
 REPO_ROOT = mf.repo_root(mf.default_manifest_path().parent)
@@ -155,3 +156,9 @@ def test_class_counts(document):
     counts = {m["name"]: rd.class_counts(m) for m in document["methods"]}
     assert set(counts["CUMVS"]) <= set(mf.CLASSES_ALLOWED_IN_FOREIGN_FORK)
     assert sum(counts["DVP-MVS"].values()) == 0
+
+
+def test_generated_tex_has_balanced_braces(document):
+    """No TeX is installed on the harness host, so this stands in for a compile."""
+    for artefact in (rd.tex_deviations(document), rd.tex_provenance(document)):
+        assert braces_balance(artefact)[0] == braces_balance(artefact)[1]

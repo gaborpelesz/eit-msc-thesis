@@ -49,3 +49,18 @@ def write_spec(tmp_path):
         return path
 
     return _write
+
+
+def braces_balance(text):
+    """(open, close) counts of unescaped braces, comments removed.
+
+    No TeX distribution is installed on the harness host, so compiling a
+    generated table cannot be part of the test suite; a brace count catches the
+    failure mode such a table actually has -- an unescaped cell running into
+    the surrounding markup.
+    """
+    stripped = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("%")
+    )
+    stripped = stripped.replace("\\\\", "").replace("\\{", "").replace("\\}", "")
+    return stripped.count("{"), stripped.count("}")
