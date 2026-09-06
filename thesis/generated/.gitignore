@@ -1,0 +1,15 @@
+# Result tables and figures are generated per campaign, by
+# `uv run python -m report render <campaign dir>`, from a result store that
+# lives outside this repository (`/data/bench/results/<campaign>/`). They are
+# ignored by default so that a dev, smoke or pilot campaign cannot drift into
+# the manuscript tree unnoticed.
+#
+# When a campaign is the one the thesis quotes, commit its tables deliberately:
+#     git add -f thesis/generated/results-<campaign>-*.tex
+#     git add -f thesis/generated/figures/results-<campaign>-*.tex
+#
+# `deviations.tex` and `methods-provenance.tex` are NOT ignored: they are
+# generated from the manifest and the forks, both of which are in this
+# repository, so they are reproducible by anyone who clones it.
+results-*
+figures/

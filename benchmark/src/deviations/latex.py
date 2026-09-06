@@ -99,7 +99,8 @@ def longtable(columns, head, body, caption, label, footer=None):
     if footer:
         lines.append("\\midrule")
         lines.append(
-            "\\multicolumn{%d}{p{\\linewidth}}{\\footnotesize %s}\\\\" % (len(head), footer)
+            "\\multicolumn{%d}{@{}p{\\dimexpr\\linewidth-2\\tabcolsep\\relax}@{}}"
+            "{\\footnotesize %s}\\\\" % (len(head), footer)
         )
     lines.append("\\end{longtable}")
     return "\n".join(lines) + "\n"
@@ -120,7 +121,8 @@ def table(columns, head, body, caption, label, footer=None, placement="H"):
     lines.append("\\bottomrule")
     if footer:
         lines.append(
-            "\\multicolumn{%d}{p{\\linewidth}}{\\footnotesize %s}\\\\" % (len(head), footer)
+            "\\multicolumn{%d}{@{}p{\\dimexpr\\linewidth-2\\tabcolsep\\relax}@{}}"
+            "{\\footnotesize %s}\\\\" % (len(head), footer)
         )
     lines.append("\\end{tabular}")
     lines.append(f"\\caption{{{caption}}}")
