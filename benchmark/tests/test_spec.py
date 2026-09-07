@@ -66,6 +66,13 @@ def test_excluded_method_is_refused(write_spec, spec_dict, manifest):
         sp.load(write_spec(spec_dict), manifest)
 
 
+def test_pending_method_is_refused(write_spec, spec_dict, manifest):
+    """A fork in the manifest but not yet audited, built or instrumented."""
+    spec_dict["methods"] = ["ACMH", "APDe-MVS"]
+    with pytest.raises(sp.SpecError, match="status: pending"):
+        sp.load(write_spec(spec_dict), manifest)
+
+
 def test_unknown_method_and_configuration_are_refused(write_spec, spec_dict, manifest):
     spec_dict["methods"] = ["NOT-A-METHOD"]
     with pytest.raises(sp.SpecError, match="not in methods.yaml"):

@@ -5,7 +5,7 @@ from Implementation Overhead"* — due 15 November 2026.
 
 ## Layout
 
-- **`benchmark/`** — the benchmarking harness and eleven forked MVS
+- **`benchmark/`** — the benchmarking harness and thirteen forked MVS
   implementations under `benchmark/methods/`. The deviation policy below
   governs every change to a method fork or to the measurement pipeline.
 - **`thesis/`** — LaTeX manuscript (ELTE FI template).
@@ -38,7 +38,7 @@ with `file:line` and the fork SHA it was read at.
 All submodules are declared in the repo-root `.gitmodules`; git does not read a
 `.gitmodules` in a subdirectory.
 
-- `benchmark/methods/*` — eleven public method forks under `gaborpelesz/`.
+- `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`.
 - `resources/papers` — submodule name `papers`, pointing at the **private**
   `eit-msc-thesis-papers`. It holds publisher versions of record (IEEE TPAMI
   camera-ready, IEEE PDFeXpress-certified PDFs) that may not be redistributed.
@@ -79,17 +79,30 @@ integrity outranks convenience in every design decision here.**
 - Phase timer (`bench_timer.h`) and the `--no-debug-output` flag are being
   added to the ten campaign forks; the Dockerfile still builds CUMVS twice and
   targets `sm_75` until the fleet image (`sm_120`) lands.
+- APDe-MVS and TSAR-MVS were added on 2026-09-07 (after the audit). APDe-MVS
+  carries `status: pending` in `methods.yaml`: in the manifest for provenance
+  and for the lineage chapter, but not built, not instrumented and not
+  measurable — `bench run` refuses a spec that names a `pending` method. Its
+  audit is a TODO list in the vault; D28 (host-side `memory_cache`) is
+  resolved as shipped, D29 (the SAM plug-in) is open. TSAR-MVS is `excluded`
+  (D30): its fusion stage and its base-method binary ship only as source-less
+  Windows executables (F-029), so like DVP-MVS it stays pristine and is an RQ4
+  case study, not a measured method.
 - What we built and how is journalled in the vault, `methodology/` (one note
   per artefact); the manuscript's methodology chapter is written from it.
 
 ## Method provenance
 
-`benchmark/methods/` holds forks (under `gaborpelesz/`) of eleven
+`benchmark/methods/` holds forks (under `gaborpelesz/`) of thirteen
 implementations. They are not equivalent in status, and the distinction must
 never be blurred:
 
 - **`published-reference`** — the authors' own release accompanying a paper
-  (ACMH, ACMM, ACMP, ACMMP, APD-MVS, HPM-MVS, HPM-MVS++, MP-MVS, DPE-MVS, DVP-MVS).
+  (ACMH, ACMM, ACMP, ACMMP, APD-MVS, APDe-MVS, HPM-MVS, HPM-MVS++, MP-MVS,
+  DPE-MVS, TSAR-MVS, DVP-MVS). APDe-MVS is the APD-MVS authors' own successor,
+  so it is a reference release too — not an optimization of APD-MVS by someone
+  else. TSAR-MVS is a Gipuma-derived refinement stage rather than a
+  stand-alone method, and DVP-MVS descends from it.
 - **`third-party-optimization`** — an external, non-authorial attempt at
   optimizing the ACM family. **CUMVS (`cuda-multi-view-stereo`) is this.** It is
   *not* the thesis author's work; it is prior art cited as evidence that

@@ -24,6 +24,16 @@ CLASSES_ALLOWED_IN_FOREIGN_FORK = tuple(c for c in DEVIATION_CLASSES if c != "op
 
 PROVENANCES = ("published-reference", "third-party-optimization", "own")
 
+# `status:` in methods.yaml. Absent means `active`. Only an `active` method may
+# appear in an experiment spec: `pending` is a fork that is in the manifest for
+# provenance but has not been audited, built or instrumented yet, and
+# `excluded` is a release that will never be measured (DVP-MVS by D19-b,
+# TSAR-MVS by D30). The difference between the two is what the verifier demands
+# of the fork — a pending fork is expected to grow audit commits, an excluded
+# one must stay pristine.
+STATUSES = ("active", "pending", "excluded")
+MEASURABLE_STATUSES = ("active",)
+
 AFFECTS_VALUES = ("none", "timing", "memory", "quality", "io")
 
 REQUIRED_METHOD_FIELDS = (
@@ -95,6 +105,15 @@ def run_git(args, cwd, check=False):
             )
         return ""
     return proc.stdout
+
+
+def status(entry):
+    return entry.get("status") or "active"
+
+
+def is_measurable(entry):
+    """May a run be produced from this method at all?"""
+    return status(entry) in MEASURABLE_STATUSES
 
 
 def is_initialised_submodule(fork_dir):

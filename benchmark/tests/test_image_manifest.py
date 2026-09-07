@@ -21,11 +21,20 @@ def test_the_manifest_describes_every_method_in_the_yaml(document, manifest):
     names = [m["name"] for m in document["methods"]]
     assert names == sorted(m["name"] for m in manifest["methods"])
     excluded = [m for m in document["methods"] if m["status"] == "excluded"]
-    assert [m["name"] for m in excluded] == ["DVP-MVS"]
+    # DVP-MVS: D19-b. TSAR-MVS: D30.
+    assert sorted(m["name"] for m in excluded) == ["DVP-MVS", "TSAR-MVS"]
     for method in document["methods"]:
         assert len(method["fork_sha"]) == 40
         assert method["dirty"] in (True, False)
-        assert len(method["converter"]["sha256"]) == 64
+        entry = next(e for e in manifest["methods"] if e["name"] == method["name"])
+        if method["converter"]["kind"] == "none":
+            # Nothing to hash: TSAR-MVS ships neither a converter nor an
+            # initializer. Only a method that may never be run may look like
+            # this — a runnable one has to have something to prepare input with.
+            assert not mf.is_measurable(entry)
+            assert method["converter"]["sha256"] is None
+        else:
+            assert len(method["converter"]["sha256"]) == 64
     cumvs = next(m for m in document["methods"] if m["name"] == "CUMVS")
     # CUMVS has no converter script; the image builds its initializer from this
     # source, which is the only thing the host can hash.

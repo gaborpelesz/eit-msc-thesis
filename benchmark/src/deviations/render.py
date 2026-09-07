@@ -58,7 +58,7 @@ def document(manifest, repo_root, generated_at=None):
             {
                 "name": entry["name"],
                 "provenance": entry.get("provenance"),
-                "status": entry.get("status", "active"),
+                "status": mf.status(entry),
                 "path": entry["path"],
                 "upstream": entry.get("upstream"),
                 "upstream_base": entry.get("upstream_base"),
@@ -210,6 +210,13 @@ def markdown(doc):
                 "campaign and is kept pristine; `deviations verify` enforces that.",
                 "",
             ]
+        elif method["status"] == "pending":
+            lines += [
+                "No commits after `upstream-base`: this fork has not been audited yet.",
+                "`status: pending` in the manifest, which says why; no run may name it,",
+                "so nothing in the result store comes from this code.",
+                "",
+            ]
         else:
             lines += ["No commits after `upstream-base`.", ""]
 
@@ -275,11 +282,10 @@ def tex_deviations(doc):
     body = []
     for method in doc["methods"]:
         if not method["fork_deviations"]:
-            note = (
-                "pristine fork, excluded from the campaign"
-                if method["status"] == "excluded"
-                else "no commits after the fork point"
-            )
+            note = {
+                "excluded": "pristine fork, excluded from the campaign",
+                "pending": "pristine fork, pending audit, never measured",
+            }.get(method["status"], "no commits after the fork point")
             body.append(
                 tex.row(
                     [

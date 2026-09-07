@@ -74,6 +74,22 @@ def verify_fields(method, report):
         f"`{provenance}` is not one of {', '.join(mf.PROVENANCES)}",
     )
 
+    status = mf.status(method)
+    report.check(
+        name,
+        "status",
+        status in mf.STATUSES,
+        f"`{status}` is not one of {', '.join(mf.STATUSES)}",
+        note="" if status == "active" else f"`{status}`: not measurable",
+    )
+    if status != "active":
+        report.check(
+            name,
+            "non-active status states its reason",
+            bool(str(method.get("reason", "")).strip()),
+            f"`status: {status}` requires a `reason:` saying why",
+        )
+
     base = str(method.get("upstream_base", ""))
     report.check(
         name,
@@ -129,12 +145,23 @@ def verify_files(method, root, report):
     converter = method.get("converter")
     if converter is None:
         initializer = method.get("initializer")
-        report.check(
-            name,
-            "converter",
-            initializer is not None,
-            "converter is null but no `initializer` is declared",
-        )
+        if initializer is None and not mf.is_measurable(method):
+            # Nothing to prepare input with, and nothing to run it on. A
+            # measurable method must declare one of the two; this one is in the
+            # manifest for provenance (TSAR-MVS ships no converter at all).
+            report.check(
+                name,
+                "converter",
+                True,
+                note=f"none, and none needed: `status: {mf.status(method)}`",
+            )
+        else:
+            report.check(
+                name,
+                "converter",
+                initializer is not None,
+                "converter is null but no `initializer` is declared",
+            )
     else:
         path = fork / converter
         report.check(name, "shipped converter", path.is_file(), f"{path} does not exist")
@@ -187,7 +214,7 @@ def verify_git(method, root, report):
 def verify_commits(method, fork, report):
     """Every commit in upstream-base..HEAD carries well-formed trailers."""
     name = method.get("name", "<unnamed>")
-    excluded = method.get("status") == "excluded"
+    excluded = mf.status(method) == "excluded"
 
     commits = mf.commits_since(fork, "upstream-base")
     if commits is None:
@@ -406,9 +433,17 @@ def verify(manifest_path, arch=None, binaries=None, image=None):
         fork = verify_git(method, root, report)
         if fork is not None:
             verify_commits(method, fork, report)
-        # An excluded method is not built, so there is no binary to check.
-        if arch is not None and method.get("status") != "excluded":
-            verify_arch(method, arch, report, binaries=binaries, image=image)
+        # Only an active method is built, so only it has a binary to check.
+        if arch is not None:
+            if mf.is_measurable(method):
+                verify_arch(method, arch, report, binaries=binaries, image=image)
+            else:
+                report.check(
+                    method.get("name", "<unnamed>"),
+                    f"method kernels built for sm_{arch}",
+                    True,
+                    note=f"skipped, `status: {mf.status(method)}`: not built",
+                )
 
     print()
     if report.failures:

@@ -6,7 +6,7 @@
     {
       "affects": "timing,memory,quality",
       "class": "build",
-      "description": "Docker toolchain. Base image nvidia/cuda:12.8.1-devel-ubuntu24.04; host and CUDA-host compiler clang-18 (never the distribution gcc); nvcc from /usr/local/cuda-12.8; CMAKE_BUILD_TYPE=Release for every method; Ninja generator. Eigen pinned to 3.4.0. OpenCV pinned to 4.12.0 with opencv_contrib, built static with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz, WITH_CUDA=ON, WITH_VTK=ON. PCL comes from Ubuntu's libpcl-dev and is linked by HPM-MVS only. None of the eleven methods was released against this toolchain, so no measurement here is a measurement of the authors' binaries.",
+      "description": "Docker toolchain. Base image nvidia/cuda:12.8.1-devel-ubuntu24.04; host and CUDA-host compiler clang-18 (never the distribution gcc); nvcc from /usr/local/cuda-12.8; CMAKE_BUILD_TYPE=Release for every method; Ninja generator. Eigen pinned to 3.4.0. OpenCV pinned to 4.12.0 with opencv_contrib, built static with BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz, WITH_CUDA=ON, WITH_VTK=ON. PCL comes from Ubuntu's libpcl-dev and is linked by HPM-MVS only. None of the thirteen methods was released against this toolchain, so no measurement here is a measurement of the authors' binaries.",
       "evidence": "benchmark/Dockerfile",
       "reversible": false,
       "status": "active"
@@ -633,6 +633,54 @@
         {
           "affects": "none",
           "deviation": "compat",
+          "rationale": "OpenCV 4.12's headers and the CUDA 12.8 runtime headers do not compile under C++11 with clang-18, so the fork cannot be built on the campaign toolchain as released. C++17 is the lowest standard that compiles here; no source file was changed and no C++17 feature is used, so the translated program is the same one.",
+          "reversible": "no",
+          "sha": "c1d000a61b32304f4655407c73cd5b27b3842c2b",
+          "subject": "compat: raise the C++ standard from C++11 to C++17",
+          "upstream_ref": "CMakeLists.txt:26,30 (whoiszzj/APDe-MVS @ 7c7ce3d)"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "deviation": "build",
+          "rationale": "as released the fork ignores -DCMAKE_CUDA_ARCHITECTURES twice over: the legacy FindCUDA target does not read it, and the autodetect then sets CUDA_ARCHITECTURES from whatever GPU the *build host* exposes, which would make the image's binary a function of the build machine and break the campaign's requirement that one image is built for one architecture. In a container with no GPU visible the autodetect falls back to a list of architectures and the unquoted `set_target_properties(APD PROPERTIES CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})` then fails to configure at all. Compiler flags are a `build` deviation and are assumed to affect results.",
+          "reversible": "no",
+          "sha": "b187d72f46d5085bfba45eb969e8396a5afb8b89",
+          "subject": "build: build CUDA through the CUDA language and honour CMAKE_CUDA_ARCHITECTURES",
+          "upstream_ref": "CMakeLists.txt:22,26,40,51-57 (whoiszzj/APDe-MVS @ 7c7ce3d)"
+        },
+        {
+          "affects": "none",
+          "deviation": "build",
+          "rationale": "the campaign image's OpenCV 4.12 is a static build whose OpenCVModules.cmake declares Eigen3::Eigen and VTK::FiltersExtraction in the link interfaces of calib3d, highgui and viz; without this the generate step fails on the missing imported targets and the fork cannot be configured at all. No symbol from highgui or viz is referenced by any source file, so the program is unchanged; this mirrors the same change in the APD-MVS fork.",
+          "reversible": "no",
+          "sha": "e437a4df593c0c5eec77ffcf441a8c409a10f36a",
+          "subject": "build: request only the OpenCV components APDe-MVS uses, and find Eigen3",
+          "upstream_ref": "CMakeLists.txt:12 (whoiszzj/APDe-MVS @ 7c7ce3d)"
+        },
+        {
+          "affects": "io",
+          "deviation": "interface",
+          "rationale": "PCL's PLY reader, which the ETH3D multi-view-evaluation binary uses, asserts in vertexColorCallback when the first colour property is not `red`, so a cloud written with blue-green-red property names cannot be evaluated at all - the defect F-023 records for APD-MVS, inherited unchanged here. Every other campaign method already declares red/green/blue. The alternative, `--export_color 0`, would change the released artefact. Colour is not used by the evaluator; geometry and vertex count are untouched.",
+          "reversible": "no",
+          "sha": "c6b3472490b0335dae6fe09d1d10093cd81044b0",
+          "subject": "interface: write the PLY colour channels in red-green-blue order",
+          "upstream_ref": "ExportPointCloud, APD.cpp:316-352 (whoiszzj/APDe-MVS @ 7c7ce3d)"
+        }
+      ],
+      "fork_sha": "c6b3472490b0335dae6fe09d1d10093cd81044b0",
+      "harness_deviations": [],
+      "name": "APDe-MVS",
+      "path": "benchmark/methods/APDe-MVS",
+      "provenance": "published-reference",
+      "status": "pending",
+      "upstream": "https://github.com/whoiszzj/APDe-MVS",
+      "upstream_base": "7c7ce3dda39cf11dbcca11546dabeb95e387c815"
+    },
+    {
+      "fork_deviations": [
+        {
+          "affects": "none",
+          "deviation": "compat",
           "rationale": "`<direct.h>` is a Microsoft C runtime header that does not exist in glibc, so the translation unit cannot be preprocessed on Linux. Nothing in the fork uses a declaration from it once the Windows `mkdir` calls are replaced.",
           "reversible": "no",
           "sha": "59d1dcbf73af9a88ea0d09a41dc6aa7d85313f69",
@@ -1231,6 +1279,17 @@
       "status": "active",
       "upstream": "https://github.com/M3phist0/DPE-MVS",
       "upstream_base": "e1ff7e3db12d83b2b8685beef1055b6de5801505"
+    },
+    {
+      "fork_deviations": [],
+      "fork_sha": "1e0a6d611b3b4a7099dc2aab1f570f458d7a3db3",
+      "harness_deviations": [],
+      "name": "TSAR-MVS",
+      "path": "benchmark/methods/TSAR-MVS",
+      "provenance": "published-reference",
+      "status": "excluded",
+      "upstream": "https://github.com/ZhenlongYuan/TSAR-MVS",
+      "upstream_base": "1e0a6d611b3b4a7099dc2aab1f570f458d7a3db3"
     },
     {
       "fork_deviations": [],

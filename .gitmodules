@@ -40,3 +40,9 @@
 [submodule "benchmark/eth3d/multi-view-evaluation"]
 	path = benchmark/eth3d/multi-view-evaluation
 	url = https://github.com/ETH3D/multi-view-evaluation.git
+[submodule "APDe-MVS"]
+	path = benchmark/methods/APDe-MVS
+	url = https://github.com/gaborpelesz/APDe-MVS.git
+[submodule "TSAR-MVS"]
+	path = benchmark/methods/TSAR-MVS
+	url = https://github.com/gaborpelesz/TSAR-MVS.git

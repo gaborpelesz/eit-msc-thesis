@@ -41,6 +41,14 @@ papers:
     version: publisher
     methods: [APD-MVS]
 
+  - file: 1-s2.0-S0031320325012567-main.pdf
+    title: Matching Ambiguity-Resilient Multi-View Stereo via Adaptive Patch Deformation
+    authors: Zhaojie Zeng, Yuesong Wang, Tao Guan
+    venue: Pattern Recognition 172 (2026), article 112593 (online 2025)
+    doi: 10.1016/j.patcog.2025.112593
+    version: publisher
+    methods: [APDe-MVS]
+
   - file: hpm_hpm.pdf
     title: Hierarchical Prior Mining for Non-local Multi-View Stereo
     arxiv: 2303.09758v1
@@ -79,6 +87,14 @@ papers:
     arxiv: 2506.13215v2
     version: preprint
     methods: [DVP-MVS]
+
+  - file: tsar_2308.09990v4.pdf
+    title: "TSAR-MVS: Textureless-aware Segmentation and Correlative Refinement Guided Multi-View Stereo"
+    authors: Zhenlong Yuan, Jiakai Cao, Zhaoqi Wang, Zhaoxin Li
+    venue: Pattern Recognition 154, 2024, article 110565
+    arxiv: 2308.09990v4
+    version: preprint
+    methods: [TSAR-MVS]
 
   - file: msp_mvs.pdf
     title: "MSP-MVS: Multi-Granularity Segmentation Prior Guided Multi-View Stereo"

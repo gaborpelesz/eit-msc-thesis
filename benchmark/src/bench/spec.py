@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+from deviations import manifest as mf
 
 from . import SCHEMA_VERSION
 
@@ -312,7 +313,7 @@ def method_entry(manifest, name):
 
 
 def validate_against_manifest(spec, manifest):
-    """R-EXP-01: unknown or excluded methods, unknown configurations."""
+    """R-EXP-01: unknown or unmeasurable methods, unknown configurations."""
     known_configs = set(manifest.get("configurations") or {})
     for name in spec.configurations:
         if name not in known_configs:
@@ -324,11 +325,17 @@ def validate_against_manifest(spec, manifest):
         entry = method_entry(manifest, name)
         if entry is None:
             raise SpecError(f"method `{name}` is not in methods.yaml")
-        if entry.get("status") == "excluded":
+        if not mf.is_measurable(entry):
+            status = mf.status(entry)
             reason = " ".join(str(entry.get("reason", "")).split())
+            verdict = (
+                "is excluded from the campaign by methods.yaml"
+                if status == "excluded"
+                else f"carries `status: {status}` in methods.yaml"
+            )
             raise SpecError(
-                f"method `{name}` is excluded from the campaign by methods.yaml "
-                f"and may not be measured. Reason: {reason}"
+                f"method `{name}` {verdict} and may not be measured. "
+                f"Reason: {reason}"
             )
         # R-EXP-09: under a shared converter, padding is applied to every
         # method or to none, so a method that enforces equal image sizes

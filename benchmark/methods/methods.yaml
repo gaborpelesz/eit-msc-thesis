@@ -55,7 +55,11 @@
 #
 # All `upstream_base` SHAs, upstream URLs and default branches are cited from
 # the fork audit: resources/obsidian/benchmarking/surveys/fork-audit.md § A
-# (audit date 2026-09-05), with the per-fork manifest facts from § B.
+# (audit date 2026-09-05), with the per-fork manifest facts from § B. The
+# exceptions are APDe-MVS and TSAR-MVS, added on 2026-09-07 after that audit:
+# their facts were read off the pristine forks on that date and are cited
+# there. APDe-MVS carries `status: pending` until its own audit lands;
+# TSAR-MVS is `excluded` (D30, 2026-09-07).
 # Pass vocabularies are from surveys/phase-survey.md § A and § E.6.
 # Converter variants and the normalized parameter set are from
 # surveys/param-survey.md § C and § E.
@@ -168,7 +172,7 @@ global_deviations:
       opencv_contrib, built static with
       BUILD_LIST=core,imgcodecs,imgproc,calib3d,cudev,highgui,viz,
       WITH_CUDA=ON, WITH_VTK=ON. PCL comes from Ubuntu's libpcl-dev and is
-      linked by HPM-MVS only. None of the eleven methods was released against
+      linked by HPM-MVS only. None of the thirteen methods was released against
       this toolchain, so no measurement here is a measurement of the authors'
       binaries.
     affects: timing,memory,quality
@@ -569,6 +573,239 @@ methods:
         reversible: flag --no-debug-output
         affects: timing,io
 
+  - name: APDe-MVS
+    path: benchmark/methods/APDe-MVS
+    upstream: https://github.com/whoiszzj/APDe-MVS
+    upstream_default_branch: master
+    upstream_base: 7c7ce3dda39cf11dbcca11546dabeb95e387c815
+    provenance: published-reference
+    provenance_note: >-
+      The APD-MVS authors' own successor release (Zeng, Wang, Guan, Pattern
+      Recognition 172 (2026) 112593, online 2025), not a third-party
+      optimization of APD-MVS and not the thesis author's work. Its four
+      claimed additions over APD-MVS are a focal weight for the deformable
+      PatchMatch, an inconsistency-aware impetus term, a SAM segmentation
+      plug-in and a visibility-conflict filter in fusion; the last three are
+      switchable at run time (see known_limitations).
+    paper: 1-s2.0-S0031320325012567-main.pdf
+    status: pending
+    reason: >-
+      Added to the manifest on 2026-09-07, after the 2026-09-05 fork audit, and
+      NOT YET MEASURABLE. The fork now carries four audit commits - c1d000a
+      (compat), b187d72 and e437a4d (build), c6b3472 (interface) - which make
+      it build on the current toolchain and fix the PLY header, but the
+      Dockerfile still does not build it, it carries no phase timer and no
+      --no-debug-output flag, and the SAM plug-in question (D29) is open. D28
+      was answered on 2026-09-07: measure as shipped, memory_cache on, the flag
+      passed explicitly in argv. `bench run` refuses a spec that names a
+      `pending` method and `deviations verify --arch` skips it, so nothing in
+      the result store can come from this fork until the instrumentation lands
+      and the status becomes `active`. Everything below is read off the fork,
+      not measured.
+    source_subdir: .
+    executable: build/APD
+    invocation: ["{executable}", "-d", "{dataset_dir}", "--dataset", "ETH3D"]
+    invocation_optional_args: ["-g", "{gpu_index}"]
+    converter: tools/colmap2mvsnet.py
+    output_ply: APD/APD.ply
+    requires_equal_image_sizes: true
+    fork_sha: null
+    passes:
+      FIRST_INIT: init
+      REFINE_INIT: refine
+      REFINE_ITER: geometric
+    known_limitations:
+      - >-
+        BUILD, fixed in the fork by b187d72 (`build`): upstream
+        CMakeLists.txt:40 created the target with FindCUDA's
+        `cuda_add_executable`, and CMakeLists.txt:51-57 then overwrote
+        CUDA_ARCHITECTURES with `CUDA_DETECT_INSTALLED_GPUS`, i.e. with
+        whatever GPU the *build host* exposed - so `-DCMAKE_CUDA_ARCHITECTURES`
+        was ignored twice over, and in a GPU-less container (an ordinary
+        `docker build`) the unquoted fallback list made CMake fail to configure
+        at all (F-030). b187d72 builds CUDA through `enable_language(CUDA)` and
+        honours CMAKE_CUDA_ARCHITECTURES; e437a4d (`build`) additionally
+        requests only the OpenCV components this fork uses and finds Eigen3
+        explicitly. Read the upstream defect at `upstream-base`, not at HEAD.
+      - >-
+        Boost, already satisfied by the image: the fork needs Boost filesystem,
+        system and program_options (CMakeLists.txt:17; main.cpp uses
+        boost::program_options for its CLI and boost::filesystem throughout),
+        and the image already carries Boost 1.83 via libboost-all-dev, which
+        libpcl-dev pulls in as a dependency (M-011) - APDe-MVS builds against
+        it with no Dockerfile change and no fork-side workaround. The explicit
+        `libboost-all-dev` apt line is still advisable in the fleet Dockerfile,
+        so that the dependency is declared rather than inherited by accident
+        from PCL's dependency graph and silently lost if PCL is ever dropped or
+        repackaged. Dropping Boost from the fork, as the APD-MVS fork did, is
+        not needed: `<filesystem>` is a drop-in but program_options is not, and
+        rewriting the CLI would be an `interface` deviation on the argv the
+        campaign records.
+      - >-
+        COMPAT, fixed in the fork by c1d000a (`compat`): upstream pinned
+        `-std=c++11` in both CUDA_NVCC_FLAGS (CMakeLists.txt:26) and
+        add_definitions (CMakeLists.txt:30), which OpenCV 4.12 headers reject
+        under CUDA 12.8 / clang-18; c1d000a raises the standard to C++17.
+        CMAKE_CXX_FLAGS_RELEASE also carries `-march=native`
+        (CMakeLists.txt:37), guarded by CMAKE_COMPILER_IS_GNUCXX and therefore
+        inert with clang-18 - it must stay inert, a native build is not
+        portable across the fleet.
+      - >-
+        INTERFACE, fixed in the fork by c6b3472 (`interface`): upstream
+        ExportPointCloud (APD.cpp:316-331) declared the PLY colour properties
+        as `blue`, `green`, `red` and wrote a matching B,G,R payload. Values
+        and geometry were self-consistent, but the property names are not the
+        standard ones - the same artefact F-023 recorded for APD-MVS, which
+        PCL, hence the ETH3D evaluator, does not accept. c6b3472 writes header
+        and payload in red-green-blue order, replicating the APD-MVS fork's
+        b105b0b. `--export_color 0` remains the alternative and is deliberately
+        not used, because it changes the released artefact.
+      - >-
+        PENDING INSTRUMENTATION: no `bench_timer.h` and no phase spans, so this
+        method produces no phase trace. The pass vocabulary above is APD-MVS's
+        (FIRST_INIT / REFINE_INIT / REFINE_ITER, main.cpp:313-359) and is
+        expected to carry over unchanged - but the span PLACEMENT is not, see
+        the synchronisation bullet below.
+      - >-
+        SYNCHRONISATION, and it is unique in the collection: APD-MVS
+        synchronises the whole device after every one of its 25 kernel launches
+        per pass (APD-MVS@95be7c9 APD.cu:2386-2494: 16 static
+        cudaDeviceSynchronize sites, 26 executed). APDe-MVS issues 26 launches
+        back to back and synchronises ONCE, at APD.cu:2731, immediately before
+        the three D2H copies; its only other two sync sites sit inside the
+        `export_anchor` / `export_reliable_curve` branches, both default false
+        (F-036). The phase survey's premise "every launch is followed by a
+        sync, so host timestamps are safe" therefore does NOT hold for this
+        fork: its phase-timer spans must be placed at RunPatchMatch boundaries
+        (where the M-004 canonical spans for the APD lineage already sit), or
+        else use the MVS_BENCH_SYNC mechanism built for CUMVS (M-009, D25).
+      - >-
+        PENDING NORMALIZATION: no `--no-debug-output` flag, and it must cover
+        THREE write sites, not one. main.cpp:359 sets show_medium_result on the
+        last geometric iteration of every round, so ProcessProblem
+        (main.cpp:192-204) writes a depth JPEG, a normal JPEG, a weak PNG and -
+        whenever geom_consistency or use_APD is on - a confidence PNG once per
+        image per round, inside the timed region. The third site is `skip.png`,
+        written once per image by WeakVisFilter (APD.cpp:1026-1036, the
+        cv::imwrite at :1035) UNCONDITIONALLY: not behind show_medium_result,
+        not behind any flag, and inside fusion rather than inside
+        ProcessProblem (F-031). A flag scoped to show_medium_result alone would
+        still leave one PNG per image and would make the global_deviations
+        debug-output table wrong for this method alone. The two export
+        plug-ins, `export_anchor` and `export_curve`, default to false.
+      - >-
+        Artefact layout differs from APD-MVS in three ways the result store and
+        the scratch accounting depend on (F-044): the per-pass intermediates
+        are `depths.bin` / `normals.bin`, NOT `.dmb`, so no ACM-family tool can
+        read them; `selected_views.bin` is no longer written at all (the D2H
+        copy is commented out, APD.cpp:747-748); and there is no post-fusion
+        cleanup, where APD-MVS deletes four files (APD-MVS@95be7c9
+        main.cpp:220-230, the four remove() calls at :223-226). A
+        `confidence.bin` is written in addition whenever geom_consistency or
+        use_APD is on. Peak scratch, not final scratch, is the quantity to
+        sample for this fork.
+      - >-
+        `norm10` asymmetry, which the results chapter must state wherever a
+        norm10 number for this method appears: WeakVisFilter loops over every
+        image of the scene (`src_index < num_images` at APD.cpp:982, with
+        num_images = cameras.size() at APD.cpp:971) and never reads pair.txt,
+        so `--neighbours=10` changes this method's PatchMatch cost but NOT its
+        fusion cost, whereas for every other method it changes both. The same
+        loop makes fusion O(N^2) in scene image count, mitigated only by a
+        thread pool (APD.cpp:1039-1048) - the only multithreaded fusion in the
+        campaign (F-038).
+      - >-
+        DECIDED (D28, author, 2026-09-07): measure as shipped - `memory_cache`
+        ON (`-m 1`), disclosed as such, with no `-m 0` arm. The flag is passed
+        explicitly in argv because the binary default (on, main.cpp:16) and the
+        authors' own run.py default (off, run.py:19, always passed explicitly
+        at run.py:83-93) disagree, so "the default" is not a well-defined
+        configuration for this method (F-042). With the cache on, WriteBinMat
+        only clones each depth, normal, weak and confidence map into a host-RAM
+        map keyed by path and writes nothing to disk unless `--flush 1` is
+        given, and ReadBinMat serves a fresh clone out of that map
+        (APD.cpp:18-83): the .dmb round trip that dominates ACMM's host I/O
+        does not happen here at all, and peak host RSS grows with the whole
+        scene instead (F-027). Both facts are disclosed with every number.
+      - >-
+        OPEN DECISION (D29): `use_sa` defaults to TRUE (main.cpp:17) and the
+        SAM masks are read from `<dense_folder>/sa_masks/<id>.bin`
+        (APD.cpp:507, 641-651), produced by the fork's own tools/run_SAM.py
+        (segment-anything, public vit_h / vit_b / vit_l checkpoints). When the
+        folder is absent the binary prints one line and runs on an all-zero
+        mask, which is the no-SAM path in the kernels (APD.cu:465, 621) - it
+        does not fail. Unlike DVP-MVS (D19-b, F-018) this preprocessing IS
+        published and reconstructible, so the method can be measured with SAM
+        as a timed `preprocess.sam` phase, or without it via `-s 0` - but never
+        by accident. See F-028. Two costs attach to the with-SAM option:
+        run_SAM.py fetches the checkpoint with `wget` at run time
+        (run_SAM.py:64-77, the call at :76) and the campaign containers have no
+        network, so the ViT-H checkpoint would have to be baked into the image
+        or mounted; and SAM is inert in round 0 whatever `-s` says, because the
+        mask load sits inside `if (params_host.use_APD)` (APD.cpp:614) and
+        round 0 forces use_APD = false (main.cpp:312-314, 340-341), so the
+        phase share is paid for rounds 1..n only.
+      - >-
+        Round schedule as in APD-MVS: ComputeRoundNum (main.cpp:129) halves the
+        larger image dimension until it is at most 800, then each round runs one
+        FIRST_INIT / REFINE_INIT pass plus `geom_iteration = 3`
+        (main.cpp:304) REFINE_ITER passes at scale 2^(round_num-1-i) - 12 image
+        passes per image at 3200 px, 16 at 6048. The 800 is applied to every
+        dataset although the comment on main.cpp:141 says "800 for TAT &
+        BlendedMVS & DTU and 1000 for ETH3D"; at 1600, 3200 and 6048 px both
+        thresholds yield the same round count, so the discrepancy is inert here.
+      - >-
+        Hard requirement, enforced: CheckImages() (main.cpp:104-126) returns
+        false unless every image in the scene has identical width and height,
+        and main exits EXIT_FAILURE with "Images may error, check it!". The same
+        constraint as APD-MVS and DPE-MVS (F-007); under `author` the fork's own
+        converter pads, under `norm10` the campaign prefers scenes needing no
+        padding, else pads every method (R-EXP-09).
+      - >-
+        `dense_folder` is a NAMED required option (`-d`, main.cpp:10), not
+        argv[1] as in APD-MVS, and every switch is a `value<bool>` that needs an
+        explicit value (`-m 0`, not `-m`). `--dataset` branches only on `TaT_a`
+        and `TaT_i` (geom_factor 0.05 instead of 0.2, and a different fusion
+        entry point; main.cpp:277-282, 294-296, 402-407), so `ETH3D` is
+        equivalent to the shipped `DTU` default and is passed only to say so
+        explicitly.
+      - >-
+        Its converter, tools/colmap2mvsnet.py, is converter variant D: it pads
+        every image to the scene maximum, rescales by `--scale_factor` with
+        INTER_NEAREST and re-encodes to JPEG (lines 512-517), and selects
+        `num_view = min(20, len(images) - 1)` neighbours by the same
+        75th-percentile triangulation-angle score as APD-MVS (lines 335-336,
+        465-468). It is not byte-identical to the APD-MVS copy: the file is
+        reformatted and it additionally writes
+        `<save_folder>/sparse/0/cameras.txt` and `images.txt` with the padded
+        dimensions and scaled intrinsics, which the binary never reads.
+        `np.asscalar` is already replaced by `.item()` upstream (line 423), so
+        this fork needs no F-013 `compat` fix.
+      - >-
+        `weak_filter` (the visibility-conflict filter) and `use_impetus` (the
+        inconsistency-aware impetus) default to TRUE (main.cpp:18-19) and are
+        two of the paper's four contributions; leaving them on is the released
+        configuration. `export_color` (main.cpp:23) also defaults to true. The
+        impetus is two gated call sites on the strong PatchMatch path
+        (APD.cu:990-992 and 1406-1408) and is the only one of the four
+        additions with a per-pixel cost (F-037), so it is also the one the
+        phase table should show.
+      - >-
+        run.py, the shipped runner, is a multi-GPU / multi-scene scheduler with
+        `--memory_cache`, `--no_fuse` / `--only_fuse` and `--resume`. The harness
+        invokes the binary directly, as it does for every other method, so
+        run.py is documentation of the authors' intended pipeline, not part of
+        the measured path - but it is authoritative documentation of intent,
+        which is what D28 turned on (F-042).
+      - >-
+        Fork carries four audit commits on top of upstream master (2026-01-04,
+        "Update paper link in README.md"), HEAD c6b3472: c1d000a (`compat`,
+        C++11 -> C++17), b187d72 (`build`, CUDA language and
+        CMAKE_CUDA_ARCHITECTURES), e437a4d (`build`, OpenCV components and
+        Eigen3) and c6b3472 (`interface`, PLY colour order). Upstream still
+        carries no tags and no release. Not rebased.
+    harness_deviations: []
+
   - name: HPM-MVS
     path: benchmark/methods/HPM-MVS
     upstream: https://github.com/CLinvx/HPM-MVS
@@ -876,6 +1113,165 @@ methods:
           behaviour; see global_deviations for what each method writes.
         reversible: flag --no-debug-output
         affects: timing,io
+
+  - name: TSAR-MVS
+    path: benchmark/methods/TSAR-MVS
+    upstream: https://github.com/ZhenlongYuan/TSAR-MVS
+    upstream_default_branch: main
+    upstream_base: 1e0a6d611b3b4a7099dc2aab1f570f458d7a3db3
+    provenance: published-reference
+    provenance_note: >-
+      Yuan, Cao, Wang and Li, Pattern Recognition 154 (2024) 110565; the same
+      first author as DVP-MVS and MSP-MVS. Not an ACM-lineage method: it is a
+      fork of Gipuma (kysucix/gipuma) with gSLICr and ORUtils vendored in, and
+      it is not a stand-alone reconstruction method at all - it is a
+      REFINEMENT STAGE that reads a base method's depth and normal maps and
+      rewrites them ("a universal algorithm that can be extended to most MVS
+      methods", its README). DVP-MVS's release contains a "simplified TSAR-MVS
+      version" (F-018), so this is that code's ancestor.
+    paper: tsar_2308.09990v4.pdf
+    status: excluded
+    reason: >-
+      Excluded from the campaign by decision D30 (author, 2026-09-07), as
+      DVP-MVS was by D19-b. Added to the manifest on 2026-09-07 for provenance
+      and for the lineage chapter; it is the collection's only Gipuma-branch
+      member and DVP-MVS's ancestor (same first author). The release cannot
+      produce a point cloud on any platform without two Windows binaries that
+      ship WITHOUT SOURCE - `Fusion.exe` (the fusion stage; no fusion source
+      exists in the repository) and `data/TRAIN/APD.exe` (a modified APD-MVS,
+      which is what writes the `depths_geom.dmb` and `weak.png` files the
+      matcher reads, under names no released APD-MVS or ACM-family binary
+      produces) - and the paper's first contribution, the three-term
+      confidence, is commented out in the shipped matcher source (F-029 and
+      the apde-tsar-lineage survey). Measuring it would mean reconstructing a
+      pipeline the authors did not publish, on a base the paper never used.
+      The fork stays pristine at upstream-base; `deviations verify` enforces
+      zero own commits and `bench run` refuses to name it. It is used as an
+      RQ4 case study, alongside DVP-MVS, in the thesis. Everything below is
+      read off the pristine fork, not measured.
+    source_subdir: .
+    executable: build/gipuma
+    invocation: []
+    converter: null
+    output_ply: null
+    requires_equal_image_sizes: null   # not determined; per-reference invocation with one K per camera, never tested on mixed sizes
+    fork_sha: null
+    passes: {}
+    known_limitations:
+      - >-
+        NOT A STAND-ALONE METHOD. `main()` (main.cpp:1871-1896) runs weak
+        texture detection, gSLICr superpixel segmentation and then
+        `runGipuma`, which at main.cpp:1457-1476 reads
+        `<mslp_folder>/APD/<image id>/depths_geom.dmb` and `normals.dmb` as
+        its starting hypotheses, plus `<...>/weak.png` (main.cpp:1499). It
+        refines those and writes `TSAR_disp.dmb`, `TSAR_normals.dmb`,
+        `TSAR_normals.png` and `TSAR_results.txt`. There is no PatchMatch
+        initialisation from scratch and no fusion: the depth maps of a base
+        method are the input, and their runtime is therefore not this method's
+        runtime. Any comparison would be `base + TSAR`, with the base named.
+      - >-
+        BLOCKER 1 - the base method's binary is not published. Upstream
+        APD-MVS (`upstream-base` 95be7c9, main.cpp:117-133, 223-225) writes
+        `depths.dmb`, `normals.dmb`, `weak.bin` and debug `weak_<i>.jpg`, and
+        DELETES the three .dmb/.bin files after fusion; `depths_geom.dmb` is
+        the ACM-family name (cf. ACMMP main.cpp:244) and no ACM-family binary
+        writes a weak map at all. So no released base method produces the three
+        files TSAR-MVS reads. What does produce them is the committed
+        `data/TRAIN/APD.exe`, a Windows binary of a modified APD-MVS with no
+        source in the repository (and `data/TRAIN/delete.py`, which prunes an
+        `APD/` output tree, keeping the .ply files).
+      - >-
+        BLOCKER 2 - the fusion stage is not published. `x/*.sh` (13 ETH3D
+        scene scripts) invoke `./Fusion <mslp_folder> --num_consistent=
+        --reproj_error= --depth_diff= --angle= --used_list=`; the only
+        `Fusion` in the repository is `Fusion.exe`, a Windows binary. No
+        fusion source exists (`grep -rl Fusion *.cpp *.cu *.h` is empty). The
+        README points at the external `kysucix/fusibile` instead, which is
+        Gipuma's companion, not the authors' modified binary, so substituting
+        it would measure a different fusion than the paper's.
+      - >-
+        BLOCKER 3 - no converter, no documented input format, and the one input
+        the CLI names is never opened. `-krt_file` (the scripts pass
+        `images/dinoSR_par.txt`, a name inherited from Gipuma's Middlebury
+        example) serves only as the non-empty sentinel that selects the branch
+        at cameraGeometryUtils.h:234: readKRtFileMiddlebury (declared
+        fileIoUtils.h:111) ignores its `filename` parameter entirely and reads
+        `<mslp_folder>/cams/<i>_cam.txt` (MVSNet format) instead - and, taking
+        the camera vector BY VALUE, discards everything it parses except
+        depthMin / depthMax, so every camera keeps the identity projection
+        matrix (F-033). `<mslp_folder>/pair.txt` is read at
+        main.cpp:1352-1376. Nothing in the repository converts ETH3D or COLMAP
+        into that mixture, and no converter could supply the krt file, because
+        nothing reads it.
+      - >-
+        Invocation shape is incompatible with the harness's one-process-per-run
+        model: the authors' scripts (`scripts/*.sh`, `x/*.sh`) loop over the
+        scene's images and start one `gipuma` process per reference image, with
+        the full image list as positional arguments and the reference first
+        (main.cpp:762-765 collects every non-`-` argv as an image name); view
+        selection then maps pair.txt image ids onto argv positions
+        (main.cpp:1352-1376). `invocation` is left empty here because the
+        harness cannot express that argv, and inventing one would imply
+        the method can be run.
+      - >-
+        The scripts pass `--min_angle=$min_angle --max_angle=$max_angle` with
+        both variables UNSET (e.g. scripts/office.sh:44), i.e. literally
+        `--min_angle= --max_angle=`, and `./Fusion` likewise receives
+        `--num_consistent= 1` as two argv tokens. The released scripts do not
+        run as written.
+      - >-
+        Build (`build`, would be needed): `cuda_add_executable`
+        (CMakeLists.txt:84). The hardcoded
+        `-gencode arch=compute_52,code=sm_52` at CMakeLists.txt:37 is set in
+        CMAKE_CUDA_FLAGS, which FindCUDA's cuda_add_executable and
+        cuda_add_library never read - they read CUDA_NVCC_FLAGS - so the line
+        is INERT and the released tree builds at nvcc's default architecture,
+        which under CUDA 12.8 is sm_52 SASS plus compute_52 PTX that the driver
+        JITs on a newer GPU (F-035, correcting the earlier reading that the
+        binary was pinned to Maxwell SASS with no PTX). What remains true is
+        that the architecture cannot be chosen: -DCMAKE_CUDA_ARCHITECTURES has
+        no effect either, and only gSLICr gets an architecture on purpose,
+        through the one mechanism FindCUDA does honour - `OPTIONS -gencode
+        arch=compute_52,code=compute_52` (PTX only, CMakeLists.txt:77).
+        `-march=native` is set unconditionally for every non-MSVC build
+        (CMakeLists.txt:11), and again in the release flags (:45), not only
+        under GNUCXX as in the ACM forks, so a fleet binary would be
+        host-specific. CUDA 6.0 / OpenCV 2.4 era code with
+        `CMAKE_CUDA_STANDARD 11`.
+      - >-
+        The paper's first contribution is disabled in the released source. The
+        three-term confidence of Eq. (1) is commented out at gipuma.cu:1200 and
+        the live line 1201 computes only two of its three terms (it drops the
+        min / second-min ratio); the `n_aggr > eta` gate that would use it,
+        with the paper's eta = 0.8, is commented out at gipuma.cu:1204-1206, so
+        the confidence is computed and then never used to reject anything
+        (F-045). This is the same pattern as DVP-MVS, whose depth-edge prior is
+        commented out in its release (F-018) - and DVP-MVS descends from this
+        code, which makes it a three-release pattern with one first author.
+      - >-
+        The repository ships build detritus and undistributable artefacts:
+        `gipuma.exe`, `Fusion.exe`, `data/TRAIN/APD.exe`, an MSVC
+        `out/build/x64-Debug/` tree, and `data/使用守则.docx`. `main.cpp` and
+        `gipuma.cu` are ISO-8859/GBK, not UTF-8 (`file` reports "ISO-8859
+        text"), so UTF-8 tooling treats them as binary - `grep` skips them
+        unless forced with `-a`.
+      - >-
+        `readDepthDmb` / `readNormalDmb` results are used without checking
+        (main.cpp:1474-1489 indexes `ref_normal(y, x)` immediately), so a
+        missing base-method depth map is a crash, not a diagnostic.
+      - >-
+        Its stage vocabulary does not map onto `canonical_passes`, which was
+        derived from the ten campaign methods: TSAR-MVS runs weak-texture
+        detection, superpixel generation, an upsampling PatchMatch, a
+        disparity-continuity pass and a large-textureless-area RANSAC
+        (main.cpp:373, 599, 1492, 1495, 1519). `passes` is therefore empty
+        rather than forced into names that would misdescribe it.
+      - >-
+        Fork is pristine at upstream main (2025-10-05, "Update README.md");
+        upstream carries no tags and no release. Its history includes
+        `Delete =`, `Delete 10]` and `Delete 参数.txt`, i.e. accidental
+        uploads.
+    harness_deviations: []
 
   - name: DVP-MVS
     path: benchmark/methods/DVP-MVS
