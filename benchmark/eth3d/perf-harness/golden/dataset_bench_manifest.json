@@ -1,0 +1,41 @@
+{
+  "files": {
+    "reconstruction.ply": {
+      "bytes": 33498637,
+      "sha256": "19fde8a73e0d5084594f546a3276a9e1261581075bab440d4dc3382147a17ce9"
+    },
+    "scan1.ply": {
+      "bytes": 12691165,
+      "sha256": "e5c9a740dc4bf150f9c476ec460ccc8e783a0242082df747ca5dbec0e9495ed4"
+    },
+    "scan2.ply": {
+      "bytes": 12685609,
+      "sha256": "2b14a279d1e32b17ab20e6088a2e749b594d466d1c30da50f01489f80bd59a7d"
+    },
+    "scan3.ply": {
+      "bytes": 12690085,
+      "sha256": "9dec98523992c2e9ba60ba40448a434af60aee895b04b44dfd860bfb41c64b96"
+    },
+    "scan_alignment.mlp": {
+      "bytes": 872,
+      "sha256": "cfd95cb9901d47bf6b6a67d25a151c28b873dbc8afedac9c8443158ad5f5f051"
+    }
+  },
+  "generator": "gen_dataset.py",
+  "gt_points_total": 3172208,
+  "n_az": 1500,
+  "n_inc": 750,
+  "n_scans": 3,
+  "preset": "bench",
+  "recon_keep": 0.88,
+  "recon_noise_sigma_m": 0.006,
+  "recon_outlier_frac": 0.025,
+  "recon_outlier_sigma_m": 0.35,
+  "recon_points": 2791543,
+  "room_extent": [
+    14.0,
+    11.0,
+    4.5
+  ],
+  "seed": 20260913
+}
