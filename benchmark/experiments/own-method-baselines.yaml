@@ -1,0 +1,38 @@
+# Head-to-head for the `own` method: the two baselines LeanMVS is claimed
+# against, on the five campaign scenes, measured under the SAME machine state as
+# the LeanMVS campaign rather than quoted from pilot-A.
+#
+# Pilot-A covers delivery_area only, and it was recorded before Xorg was
+# attached to this GPU. Re-running both methods here is what makes the
+# comparison apples-to-apples; the pilot rows stay in the store untouched and
+# the two sets are reported separately.
+#
+# Still one repeat per (method, scene): a sizing and comparison run, not a
+# thesis measurement (R-STA-01).
+
+version: 1
+campaign: own-method-baselines
+image: mvs-bench:sm75
+
+methods:
+  - ACMMP
+  - APD-MVS
+scenes: [delivery_area, kicker, office, pipes, relief]
+widths: [3200]
+configurations: [author]
+repeats: 1
+
+timeout_seconds: 21600
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896
+
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds
