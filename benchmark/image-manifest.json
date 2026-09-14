@@ -1,13 +1,13 @@
 {
   "dockerfile": {
     "path": "benchmark/Dockerfile",
-    "sha256": "d2f271cb34faecc3ba7792864b02626da91b4b694061ca357b04b24721b80ac6"
+    "sha256": "e9d2385e4b272620dded00e657e477b477bf1fe67004c697771078f6350b9e26"
   },
   "evaluator": {
     "path": "benchmark/eth3d/multi-view-evaluation",
     "sha": "e63cda48ad9c9090b833439caf518a4b51c85a06"
   },
-  "generated_at": "2026-09-14T20:15:15.994323+00:00",
+  "generated_at": "2026-09-14T21:34:36.274496+00:00",
   "methods": [
     {
       "converter": {
@@ -177,6 +177,19 @@
       "path": "benchmark/methods/TSAR-MVS",
       "provenance": "published-reference",
       "status": "excluded"
+    },
+    {
+      "converter": {
+        "kind": "shared",
+        "path": "benchmark/src/eval/colmap2mvsnet_acm_perf.py",
+        "sha256": "99e821f65ba3d3657261e7ae19d3c1499479b483001bb98f6828890dc301bc13"
+      },
+      "dirty": false,
+      "fork_sha": "6b4c85de47bb00373e386fd137410756406f803a",
+      "name": "quorum-mvs",
+      "path": "benchmark/methods/quorum-mvs",
+      "provenance": "own",
+      "status": "active"
     }
   ],
   "pyproject": {

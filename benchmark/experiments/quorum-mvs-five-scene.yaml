@@ -24,7 +24,7 @@
 
 version: 1
 campaign: quorum-mvs-five-scene
-image: mvs-bench:sm75-eval
+image: mvs-bench:sm75-quorum
 
 methods:
   - quorum-mvs
