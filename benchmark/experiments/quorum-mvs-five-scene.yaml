@@ -1,0 +1,49 @@
+# The `own` method on the five campaign scenes, through the harness.
+#
+# Every number quorum-mvs has was produced by invoking the binary directly and
+# scoring the cloud by hand; the two campaigns it is compared against
+# (`own-method-baselines`, `leaders-five-scene`) went through `bench run` and
+# landed in the result store with full provenance. This spec closes that gap:
+# the same five scenes, the same width, the same machine state, recorded the
+# same way as the five published methods it is ranked against.
+#
+# Three repeats, not one. quorum-mvs's seed is a required argument and the
+# harness passes the repeat index, so repeats 1..3 are seeds 1..3 - the same
+# three the existing multi-seed table used, and independent draws rather than
+# three re-measurements of one (R-STA-01).
+#
+# `author` at 20 source views is the configuration every existing number was
+# measured at. For this method `author` does NOT mean "the fork's own
+# converter": it ships none, so the shared colmap2mvsnet_acm_perf prepares its
+# input here exactly as it would under norm10, and the manifest records that
+# asymmetry as a harness deviation.
+#
+# NOT RUNNABLE YET: benchmark/Dockerfile does not build quorum-mvs, so the
+# image carries no binary for it and D24.1 will refuse the run until the image
+# is rebuilt from a tree whose Dockerfile does. `bench plan` works today.
+
+version: 1
+campaign: quorum-mvs-five-scene
+image: mvs-bench:sm75-eval
+
+methods:
+  - quorum-mvs
+scenes: [delivery_area, kicker, office, pipes, relief]
+widths: [3200]
+configurations: [author]
+repeats: 3
+
+timeout_seconds: 21600
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+evaluator_sha: e63cda48ad9c9090b833439caf518a4b51c85a06
+
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds
