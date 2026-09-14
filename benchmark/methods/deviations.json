@@ -1373,6 +1373,12 @@
       "fork_sha": "6b4c85de47bb00373e386fd137410756406f803a",
       "harness_deviations": [
         {
+          "affects": "timing,io",
+          "class": "normalization",
+          "description": "`--with-colour` is passed in every configuration. The five published methods measured alongside it write red/green/blue as part of fusion, so their clouds carry colour and theirs is the cost of producing it; this method's fusion emits geometry only and reads colour back on the host in a separate pass, which is off by default. Left off, it would be doing strictly less work than the methods it is timed against, and the comparison would favour it for a reason that has nothing to do with the algorithm. Measured cost of the pass: delivery_area 228.136 s with against 228.493 s without (inside the 0.000058 F1 seed noise band for this configuration, i.e. not resolvable), pipes 53.272 s against 53.093 s. It also makes the clouds visually comparable, which the geometry-only output is not.",
+          "reversible": "flag omit --with-colour"
+        },
+        {
           "affects": "quality",
           "class": "interface",
           "description": "IT SHIPS NO CONVERTER. The shared colmap2mvsnet_acm_perf prepares its input in BOTH configurations, `author` included, which no other method's `author` does - every other method runs its own converter there and only `norm10` substitutes the shared one. Its `author` input is therefore byte-comparable with the ACM-lineage methods' (whose shipped converters are view-selection-identical to the shared one) but NOT with APD-MVS's or DPE-MVS's, whose own converters pad, re-encode and optionally rescale. Declared as `converter_source: shared`.",
