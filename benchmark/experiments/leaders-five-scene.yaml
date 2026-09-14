@@ -1,7 +1,7 @@
 # The three strongest published methods on all five campaign scenes.
 #
 # pilot-A measured MP-MVS, HPM-MVS and DPE-MVS on delivery_area only, and did so
-# before Xorg was attached to this GPU. Every claim about how LeanMVS stands
+# before Xorg was attached to this GPU. Every claim about how Quorum MVS stands
 # against them therefore rests on one scene recorded under a different machine
 # state (F-070). This campaign re-runs all three on the same five scenes and the
 # same machine state as `own-method-baselines`, so the three-way comparison

@@ -1,6 +1,6 @@
-# Head-to-head for the `own` method: the two baselines LeanMVS is claimed
+# Head-to-head for the `own` method: the two baselines Quorum MVS is claimed
 # against, on the five campaign scenes, measured under the SAME machine state as
-# the LeanMVS campaign rather than quoted from pilot-A.
+# the Quorum MVS campaign rather than quoted from pilot-A.
 #
 # Pilot-A covers delivery_area only, and it was recorded before Xorg was
 # attached to this GPU. Re-running both methods here is what makes the
