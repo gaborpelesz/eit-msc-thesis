@@ -1,0 +1,43 @@
+# The three strongest published methods on all five campaign scenes.
+#
+# pilot-A measured MP-MVS, HPM-MVS and DPE-MVS on delivery_area only, and did so
+# before Xorg was attached to this GPU. Every claim about how Quorum MVS stands
+# against them therefore rests on one scene recorded under a different machine
+# state (F-070). This campaign re-runs all three on the same five scenes and the
+# same machine state as `own-method-baselines`, so the three-way comparison
+# becomes as well-founded as the ACMMP/APD-MVS one.
+#
+# delivery_area is included deliberately rather than skipped: the pilot-A rows
+# stay untouched in the store, and re-measuring it here is what lets the five
+# scenes be read as one set.
+#
+# Still one repeat per (method, scene) - a comparison campaign, not a thesis
+# measurement (R-STA-01).
+
+version: 1
+campaign: leaders-five-scene
+image: mvs-bench:sm75
+
+methods:
+  - MP-MVS
+  - HPM-MVS
+  - DPE-MVS
+scenes: [delivery_area, kicker, office, pipes, relief]
+widths: [3200]
+configurations: [author]
+repeats: 1
+
+timeout_seconds: 21600
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+evaluator_sha: 0daa4f4de036d47d37a6ba054c51fd66642ef896
+
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds

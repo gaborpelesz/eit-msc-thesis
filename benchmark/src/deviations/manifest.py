@@ -36,6 +36,20 @@ MEASURABLE_STATUSES = ("active",)
 
 AFFECTS_VALUES = ("none", "timing", "memory", "quality", "io")
 
+# `converter_source:` in methods.yaml. Absent means `fork`: the method ships a
+# converter, `author` runs it and only a normalized configuration substitutes
+# the shared one. `shared` means the method ships none at all, so the shared
+# converter is what prepares its input in EVERY configuration, `author`
+# included -- an asymmetry with every other method's `author` that has to be
+# declared here rather than inferred from a null `converter:`, which CUMVS also
+# has for an entirely different reason.
+CONVERTER_SOURCES = ("fork", "shared")
+
+# The one converter that belongs to the harness rather than to a method,
+# relative to the superproject root. `norm10` substitutes it for every method,
+# and a `converter_source: shared` method consumes it in every configuration.
+SHARED_CONVERTER = "benchmark/src/eval/colmap2mvsnet_acm_perf.py"
+
 REQUIRED_METHOD_FIELDS = (
     "name",
     "path",
@@ -111,9 +125,25 @@ def status(entry):
     return entry.get("status") or "active"
 
 
+def is_own(entry):
+    """A method the thesis author wrote, living in this repository.
+
+    It has no upstream to deviate from, so the whole fork-point machinery --
+    the `upstream-base` tag, the trailer-carrying commit range, the
+    superproject gitlink -- does not apply to it. What takes their place is
+    the superproject's own HEAD, recorded in every run record like a fork SHA.
+    """
+    return entry.get("provenance") == "own"
+
+
 def is_measurable(entry):
     """May a run be produced from this method at all?"""
     return status(entry) in MEASURABLE_STATUSES
+
+
+def converter_source(entry):
+    """Where this method's input preparation comes from: `fork` or `shared`."""
+    return entry.get("converter_source") or "fork"
 
 
 def is_initialised_submodule(fork_dir):

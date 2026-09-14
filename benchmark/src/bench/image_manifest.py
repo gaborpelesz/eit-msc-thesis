@@ -23,12 +23,14 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from deviations import manifest as mf
+from deviations.manifest import SHARED_CONVERTER
+
 SCHEMA_VERSION = 1
 
 DOCKERFILE = "benchmark/Dockerfile"
 PYPROJECT = "benchmark/pyproject.toml"
 UV_LOCK = "benchmark/uv.lock"
-SHARED_CONVERTER = "benchmark/src/eval/colmap2mvsnet_acm_perf.py"
 EVALUATOR_SUBMODULE = "benchmark/eth3d/multi-view-evaluation"
 
 DEFAULT_MANIFEST_NAME = "image-manifest.json"
@@ -100,6 +102,11 @@ def converter_identity(repo_root, entry):
     if entry.get("converter"):
         record = _file_record(repo_root, f"{entry['path']}/{entry['converter']}")
         return {"kind": "converter", **record}
+    if mf.converter_source(entry) == "shared":
+        # Recorded per method as well as once at the top level: a method that
+        # consumes the shared converter in every configuration has no other
+        # preprocessing identity, and `kind: none` would claim it has none.
+        return {"kind": "shared", **_file_record(repo_root, SHARED_CONVERTER)}
     source = initializer_source(entry)
     if source:
         return {"kind": "initializer_source", **_file_record(repo_root, source)}

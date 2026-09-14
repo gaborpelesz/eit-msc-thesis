@@ -77,6 +77,47 @@ def test_cumvs_preprocessing_is_its_own_initialiser(write_spec, spec_dict, manif
     assert method_argv[-1] == "--output-directory=/work/prepared/CUMVS"
 
 
+def test_the_repeat_index_reaches_the_invocation_template(write_spec, spec_dict, manifest):
+    """A method whose seed is a required argument has to write it in terms of
+    something that differs per repeat and is stable across a re-run."""
+    spec = _spec(write_spec, spec_dict, manifest, methods=["ACMM"])
+    entry = dict(
+        sp.method_entry(manifest, "ACMM"),
+        invocation=["{executable}", "{dataset_dir}", "--seed", "{repeat}"],
+    )
+    seeds = {
+        rn.resolve_invocation(spec, entry, run)[-1]
+        for run in sp.expand(spec)
+        if run.width == 3200
+    }
+    assert seeds == {"1", "2"}
+
+
+def test_converter_source_shared_uses_the_shared_converter_under_author(
+    write_spec, spec_dict, manifest
+):
+    """A method that ships no converter has nothing for `author` to run, so the
+    shared one prepares its input in both configurations -- the asymmetry the
+    entry has to declare as a harness deviation."""
+    spec = _spec(write_spec, spec_dict, manifest, methods=["ACMM"], configurations=["author"])
+    run = sp.expand(spec)[0]
+    entry = dict(sp.method_entry(manifest, "ACMM"), converter=None, converter_source="shared")
+    argv = rn.preprocess_argv(spec, entry, run)
+    assert argv[0].endswith("colmap2mvsnet_acm_perf")
+    assert "--neighbours" not in argv
+    assert argv[-4:] == ["--dense_folder", "/data", "--save_folder", "/work/prepared"]
+
+
+def test_converter_source_shared_still_takes_the_normalized_neighbour_count(
+    write_spec, spec_dict, manifest
+):
+    spec = _spec(write_spec, spec_dict, manifest, methods=["ACMM"], configurations=["norm10"])
+    run = sp.expand(spec)[0]
+    entry = dict(sp.method_entry(manifest, "ACMM"), converter=None, converter_source="shared")
+    argv = rn.preprocess_argv(spec, entry, run)
+    assert argv[-2:] == ["--neighbours", "10"]
+
+
 def test_mp_mvs_gets_its_config_file_argument(write_spec, spec_dict, manifest):
     spec = _spec(write_spec, spec_dict, manifest, methods=["MP-MVS"])
     run = sp.expand(spec)[0]

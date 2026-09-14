@@ -46,3 +46,6 @@
 [submodule "TSAR-MVS"]
 	path = benchmark/methods/TSAR-MVS
 	url = https://github.com/gaborpelesz/TSAR-MVS.git
+[submodule "quorum-mvs"]
+	path = benchmark/methods/quorum-mvs
+	url = https://github.com/gaborpelesz/quorum-mvs.git

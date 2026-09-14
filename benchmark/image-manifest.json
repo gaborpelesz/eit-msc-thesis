@@ -1,13 +1,13 @@
 {
   "dockerfile": {
     "path": "benchmark/Dockerfile",
-    "sha256": "c6556ccc45bb1fef9885da71aa635f25cace3ec2aa4c2279fd2bf7bc1a8dd26d"
+    "sha256": "e9d2385e4b272620dded00e657e477b477bf1fe67004c697771078f6350b9e26"
   },
   "evaluator": {
     "path": "benchmark/eth3d/multi-view-evaluation",
-    "sha": "0daa4f4de036d47d37a6ba054c51fd66642ef896"
+    "sha": "e63cda48ad9c9090b833439caf518a4b51c85a06"
   },
-  "generated_at": "2026-09-05T23:24:02.739763+00:00",
+  "generated_at": "2026-09-14T21:34:36.274496+00:00",
   "methods": [
     {
       "converter": {
@@ -73,6 +73,19 @@
       "path": "benchmark/methods/APD-MVS",
       "provenance": "published-reference",
       "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "converter",
+        "path": "benchmark/methods/APDe-MVS/tools/colmap2mvsnet.py",
+        "sha256": "c31376e6f1ec80b0c1d0e38a41482a7a320c14a5b3b8ab9b811a7d6f3335f2a3"
+      },
+      "dirty": false,
+      "fork_sha": "c6b3472490b0335dae6fe09d1d10093cd81044b0",
+      "name": "APDe-MVS",
+      "path": "benchmark/methods/APDe-MVS",
+      "provenance": "published-reference",
+      "status": "pending"
     },
     {
       "converter": {
@@ -150,6 +163,32 @@
       "name": "MP-MVS",
       "path": "benchmark/methods/MP-MVS",
       "provenance": "published-reference",
+      "status": "active"
+    },
+    {
+      "converter": {
+        "kind": "none",
+        "path": null,
+        "sha256": null
+      },
+      "dirty": false,
+      "fork_sha": "1e0a6d611b3b4a7099dc2aab1f570f458d7a3db3",
+      "name": "TSAR-MVS",
+      "path": "benchmark/methods/TSAR-MVS",
+      "provenance": "published-reference",
+      "status": "excluded"
+    },
+    {
+      "converter": {
+        "kind": "shared",
+        "path": "benchmark/src/eval/colmap2mvsnet_acm_perf.py",
+        "sha256": "99e821f65ba3d3657261e7ae19d3c1499479b483001bb98f6828890dc301bc13"
+      },
+      "dirty": false,
+      "fork_sha": "6b4c85de47bb00373e386fd137410756406f803a",
+      "name": "quorum-mvs",
+      "path": "benchmark/methods/quorum-mvs",
+      "provenance": "own",
       "status": "active"
     }
   ],

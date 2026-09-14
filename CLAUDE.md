@@ -5,8 +5,8 @@ from Implementation Overhead"* — due 15 November 2026.
 
 ## Layout
 
-- **`benchmark/`** — the benchmarking harness and thirteen forked MVS
-  implementations under `benchmark/methods/`. The deviation policy below
+- **`benchmark/`** — the benchmarking harness and, under `benchmark/methods/`,
+  thirteen forked MVS implementations plus the author's own method. The deviation policy below
   governs every change to a method fork or to the measurement pipeline.
 - **`thesis/`** — LaTeX manuscript (ELTE FI template).
 - **`resources/`** — thesis declaration form, `papers.yaml`, and the private
@@ -38,18 +38,35 @@ with `file:line` and the fork SHA it was read at.
 All submodules are declared in the repo-root `.gitmodules`; git does not read a
 `.gitmodules` in a subdirectory.
 
-- `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`.
+**The superproject is PRIVATE on GitHub, temporarily and deliberately.** It was
+made private while the author's own method was extracted into its own repository,
+and it goes public again once that extraction is complete — Quorum MVS is then
+private independently of it. Earlier text here asserted the superproject was
+already public; it is not, but it is about to be, which is the stricter reading
+of the two. Write everything committed here to be publishable, and keep anything
+that must never be published in one of the private submodules above, which do
+not travel with it.
+
+- `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`,
+  plus `quorum-mvs` below, which is not a fork.
+- `benchmark/methods/quorum-mvs` — submodule name `quorum-mvs`, pointing at the
+  **private** `quorum-mvs`. It is the thesis author's own method
+  (`provenance: own`), not a fork of anyone's release, and it carries no
+  `upstream`/`upstream_base`. **It is private and stays private**, so
+  `git clone --recursive` fails on it for anyone without access; the failure is
+  benign.
 - `resources/papers` — submodule name `papers`, pointing at the **private**
   `eit-msc-thesis-papers`. It holds publisher versions of record (IEEE TPAMI
   camera-ready, IEEE PDFeXpress-certified PDFs) that may not be redistributed.
-  **This repo is public; that one must never be made public, and no workflow may
-  mirror, attach, or publish its contents.** `git clone --recursive` therefore
+  **That one must never be made public, and no workflow may mirror, attach, or
+  publish its contents.** `git clone --recursive` therefore
   fails on `papers` for anyone without access; the failure is benign.
 - `resources/obsidian` — submodule name `obsidian`, pointing at the **private**
   `eit-msc-thesis-obsidian`. It holds unfiltered working notes: reading
   commentary, critiques of published work, open questions. Written for the
-  author, not for publication. **Never move note content into this public
-  repository**; `--recursive` fails on it too, benignly.
+  author, not for publication. **Never move note content into the superproject**,
+  which is the repository that may one day be published; `--recursive` fails on
+  it too, benignly.
 
 `resources/papers.yaml` maps each PDF filename to its arXiv ID or DOI, so the
 bibliography stays reproducible for readers who cannot clone the submodule.
@@ -72,7 +89,8 @@ integrity outranks convenience in every design decision here.**
   `telemetry.parquet`, `phases.txt`, logs) queried with DuckDB. No database.
 - `benchmark/methods/methods.yaml`, the `upstream-base` tags and the
   `deviations verify` CLI exist (audit of 2026-09-05; `uv run deviations
-  verify` must pass before any measurement). `deviations render` is a stub.
+  verify` must pass before any measurement). `deviations render` is implemented
+  and generates `DEVIATIONS.md`, `deviations.json` and the thesis tables.
 - DVP-MVS is excluded from the campaign (its release does not implement the
   paper's prior and the DL preprocessing was never published — D19-b, F-018);
   the fork stays pristine and the verifier enforces zero own commits.
@@ -94,8 +112,8 @@ integrity outranks convenience in every design decision here.**
 ## Method provenance
 
 `benchmark/methods/` holds forks (under `gaborpelesz/`) of thirteen
-implementations. They are not equivalent in status, and the distinction must
-never be blurred:
+implementations, plus one method that is not a fork of anything. They are not
+equivalent in status, and the distinction must never be blurred:
 
 - **`published-reference`** — the authors' own release accompanying a paper
   (ACMH, ACMM, ACMP, ACMMP, APD-MVS, APDe-MVS, HPM-MVS, HPM-MVS++, MP-MVS,
@@ -107,8 +125,12 @@ never be blurred:
   optimizing the ACM family. **CUMVS (`cuda-multi-view-stereo`) is this.** It is
   *not* the thesis author's work; it is prior art cited as evidence that
   optimization headroom exists.
-- **`own`** — the thesis author's own reimplementation (planned: a fork of
-  APD-MVS, optimised in measured steps), once it exists.
+- **`own`** — the thesis author's own method. This is **Quorum MVS**
+  (`benchmark/methods/quorum-mvs`, private). It was written from scratch, not
+  forked from APD-MVS as originally planned, so it has no upstream and no
+  `upstream-base` tag; what stands in for a commit range is its `methods.yaml`
+  entry and the submodule gitlink, both checked by `deviations verify`. Where it
+  takes a mechanism from the lineage it cites that method by name.
 
 Whenever a method is described in prose, in a table, or in the thesis, its
 provenance must be stated correctly. Do not attribute CUMVS to the author.

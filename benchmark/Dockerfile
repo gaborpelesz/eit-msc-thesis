@@ -215,19 +215,55 @@ RUN cd /sota/DPE-MVS/DPE-MVS \
       -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-# ETH3D evaluator, the gaborpelesz/multi-view-evaluation fork of upstream
-# ETH3D/multi-view-evaluation, pinned by the submodule;
-# the patch only lifts the C++ standard and the PCL version floor so it builds
-# with clang-18 / PCL 1.14 (no change to what is computed).
-WORKDIR /multi-view-evaluation
-ADD eth3d/multi-view-evaluation /multi-view-evaluation
-COPY eth3d/multi-view-evaluation-compat.patch /tmp/mve-compat.patch
-RUN git apply /tmp/mve-compat.patch \
+# Quorum MVS, the thesis author's own method (`provenance: own`). Not a fork, so
+# it has no upstream stanza above it; it builds exactly like the forks do, and
+# deliberately with the same BENCH_PHASES switch. Its src/timing/bench_timer.h is
+# md5-identical to ACMH's and ACMMP's copies, so omitting the flag here would
+# leave the own method carrying the phase timer while the ten forks honour the
+# switch -- a timing asymmetry in its own favour, in exactly the comparison this
+# thesis is built on.
+#
+# The submodule is PRIVATE. `docker build` reads the checked-out working tree, so
+# this layer only builds for someone who could clone it; for anyone else the COPY
+# fails loudly rather than silently producing an image with thirteen methods.
+COPY methods/quorum-mvs/ /sota/quorum-mvs/
+RUN cd /sota/quorum-mvs \
     && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
+      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+    && cmake --build build
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# ETH3D evaluator, the gaborpelesz/multi-view-evaluation fork of upstream
+# ETH3D/multi-view-evaluation, pinned by the submodule. The fork's own
+# CMakeLists carries what multi-view-evaluation-compat.patch used to add, so the
+# patch is no longer applied; it is kept in the tree because the pre-fork
+# submodule SHAs still need it.
+#
+# MVE_PCL_IO_FALLBACK=OFF is the configuration the speedup is claimed and
+# verified for: the lean reader handles the ETH3D scans directly, and linking
+# PCL's io pulls in VTK, whose cmake exports an unresolvable MPI target here.
+# MVE_LTO=OFF is explicit because this image cannot do ThinLTO: it carries no
+# llvm-ar/llvm-ranlib, so CMake's IPO probe fails and silently skips it. Left at
+# its ON default the build requests an optimisation it does not get, which is
+# the kind of gap that turns into a wrong claim later. MVE_NATIVE_ARCH keeps its
+# ON default -- that is the binary every equivalence check here was run against
+# -- but it means this layer is valid only on the ISA it was compiled on, the
+# fork's CMakeLists documenting that this program is not invariant to FMA
+# contraction. The campaign's hardware fingerprint already pins that.
+WORKDIR /multi-view-evaluation
+ADD eth3d/multi-view-evaluation /multi-view-evaluation
+RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DMVE_PCL_IO_FALLBACK=OFF \
+      -DMVE_LTO=OFF \
     && cmake --build build \
     && cp build/ETH3DMultiViewEvaluation /usr/local/bin/ETH3DMultiViewEvaluation
 
