@@ -218,6 +218,32 @@ global_deviations:
     reversible: no
     evidence: fork-audit.md § C.1
 
+  - class: build
+    status: active
+    description: >-
+      ETH3D evaluator. Scoring runs against the gaborpelesz fork of
+      ETH3D/multi-view-evaluation rather than upstream, built
+      CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=OFF and the fork's
+      MVE_NATIVE_ARCH and MVE_LTO defaults (both ON). The fork changes only how
+      fast the scoring runs: it adds a lean PLY reader in place of PCL's
+      general one, parallelises the grid build, and raises -O2 to -O3 with
+      ThinLTO, and its own gate hashes the twelve per-point classification
+      clouds as well as the four printed result lines. Independently
+      re-verified here on six real campaign clouds (6.1M to 40.2M points,
+      LeanMVS / APD-MVS / ACMMP / MP-MVS) at the campaign's own tolerances:
+      max absolute difference 0.000e+00 over all 90 cells, 398.4 s to 51.0 s
+      end to end; and inside the campaign image on delivery_area at 43.7M
+      points, 129.05 s to 14.75 s with every printed digit unchanged. The
+      quality of a measurement is therefore unaffected and only the cost of
+      taking it moves. MVE_NATIVE_ARCH=ON means the built layer is valid only
+      on the ISA it was compiled on -- the fork's CMakeLists documents that this
+      program is not invariant to FMA contraction -- which the campaign's
+      hardware-fingerprint binding already enforces. No campaign predating the
+      swap needs rescoring, but a campaign must not mix evaluator builds.
+    affects: timing
+    reversible: no
+    evidence: benchmark/Dockerfile; benchmark/eth3d/perf-harness/README.md; F-073 verify block
+
   - class: normalization
     status: active
     description: >-

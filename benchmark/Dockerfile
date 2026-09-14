@@ -218,16 +218,24 @@ RUN cd /sota/DPE-MVS/DPE-MVS \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # ETH3D evaluator, the gaborpelesz/multi-view-evaluation fork of upstream
-# ETH3D/multi-view-evaluation, pinned by the submodule;
-# the patch only lifts the C++ standard and the PCL version floor so it builds
-# with clang-18 / PCL 1.14 (no change to what is computed).
+# ETH3D/multi-view-evaluation, pinned by the submodule. The fork's own
+# CMakeLists carries what multi-view-evaluation-compat.patch used to add, so the
+# patch is no longer applied; it is kept in the tree because the pre-fork
+# submodule SHAs still need it.
+#
+# MVE_PCL_IO_FALLBACK=OFF is the configuration the speedup is claimed and
+# verified for: the lean reader handles the ETH3D scans directly, and linking
+# PCL's io pulls in VTK, whose cmake exports an unresolvable MPI target here.
+# MVE_NATIVE_ARCH and MVE_LTO are left at their ON defaults because that is the
+# binary the equivalence check was run against -- but native arch means this
+# layer is only valid on the ISA it was built on, which the campaign's hardware
+# fingerprint already pins.
 WORKDIR /multi-view-evaluation
 ADD eth3d/multi-view-evaluation /multi-view-evaluation
-COPY eth3d/multi-view-evaluation-compat.patch /tmp/mve-compat.patch
-RUN git apply /tmp/mve-compat.patch \
-    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DMVE_PCL_IO_FALLBACK=OFF \
     && cmake --build build \
     && cp build/ETH3DMultiViewEvaluation /usr/local/bin/ETH3DMultiViewEvaluation
 
