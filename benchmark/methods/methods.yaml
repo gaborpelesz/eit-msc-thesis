@@ -1456,3 +1456,162 @@ methods:
           --no-debug-output to it -- the binary has no such flag.
         reversible: no
         affects: none
+
+  - name: quorum-mvs
+    path: benchmark/methods/quorum-mvs
+    # Not a fork. There is no upstream to deviate from, so there is no
+    # `upstream-base` tag and no commit range to read trailers out of; what
+    # takes their place is this entry and the submodule gitlink, both checked
+    # by `deviations verify`.
+    upstream: null
+    upstream_default_branch: null
+    upstream_base: null
+    provenance: own
+    provenance_note: >-
+      The thesis author's own method, written for this thesis. It is not a fork
+      or an optimization of any of the twelve published references, and it is
+      not CUMVS's line of work either - CUMVS is a third-party optimization of
+      the ACM family and must never be attributed to the author. Where this
+      method takes a mechanism from the lineage it names the file and symbol it
+      took it from, in its own docs/. Its repository is PRIVATE, so
+      `git clone --recursive` fails on it for anyone without access; the
+      failure is benign and every other method still checks out.
+    paper: null
+    source_subdir: .
+    executable: build/src/quorum-mvs
+    # The configuration every existing number was measured at, read off the run
+    # records rather than retyped from prose: --size-bound 500 --levels 4
+    # --geom-passes 2 --use-prior on --prior-position acmmp --prior-iterations 5
+    # --num-source-views 20 --sampling adaptive --patch-scales 2. --seed and
+    # --device are required arguments with no defaults; the seed is the run's
+    # repeat index, so repeats 1..N draw seeds 1..N.
+    invocation: ["{executable}", "{dataset_dir}",
+                 "--seed", "{repeat}",
+                 "--device", "{gpu_index}",
+                 "--num-source-views", "20",
+                 "--size-bound", "500",
+                 "--levels", "4",
+                 "--geom-passes", "2",
+                 "--use-prior", "on",
+                 "--prior-position", "acmmp",
+                 "--prior-iterations", "5",
+                 "--sampling", "adaptive",
+                 "--patch-scales", "2",
+                 "--output", "{dataset_dir}/quorum-mvs_model.ply"]
+    converter: null
+    converter_source: shared
+    output_ply: quorum-mvs_model.ply
+    requires_equal_image_sizes: false
+    fork_sha: null
+    # Its own vocabulary is ACMMP's, by construction: src/pipeline/schedule.cpp
+    # sets PassPlan::trace_name to exactly these five strings so that a phase
+    # trace tagged `pass=` is comparable with the ten measured forks without a
+    # second mapping.
+    passes:
+      photometric: photometric
+      hierarchy: hierarchy
+      planar_prior: prior
+      geom: geometric
+      multi-geometry: multi_geometric
+    known_limitations:
+      - >-
+        NOT BUILT BY benchmark/Dockerfile. The image builds the thirteen forks
+        and not this method, so `bench run` cannot execute it yet; `bench plan`
+        and `deviations verify` are unaffected. Adding this entry also makes
+        every existing image's build manifest differ from the working tree's by
+        one method, so D24.1 will refuse EVERY `bench run`, whatever it names,
+        until the Dockerfile builds this method and the image is rebuilt with a
+        regenerated image-manifest.json.
+      - >-
+        The pinned submodule SHA predates the rename from the method's former
+        name: at that commit the CMake project, the executable target and the
+        default --output path still carry it. `executable` and the --output
+        token above are written to the agreed names and become true when the
+        submodule is bumped past the rename.
+      - >-
+        The cloud is written to the ROOT of the prepared folder rather than to
+        a subdirectory of it, unlike every other method. src/io/ply.cpp opens
+        the path with std::fopen and creates no parent directory, and the
+        binary's own default (<dense>/<name>/<name>_model.ply) therefore names
+        a directory nothing creates. `output_ply` and the --output token name
+        the same file and nothing in the harness makes them; the test
+        `test_own_method_entry.py` is what keeps them in step.
+      - >-
+        The binary's own defaults are not the measured configuration: the
+        shipped --num-source-views is 10, --levels 1, --geom-passes 0,
+        --use-prior off, --size-bound 1000 (ACMMP's), --sampling acmmp and
+        --patch-scales 0. The invocation above is the operating point the
+        author selected by measurement, and it is what the manifest, not the
+        binary, defines.
+      - >-
+        It writes its own run record (--run-json, defaulting to the --output
+        path with a .json suffix) beside the cloud in the scratch tree, which
+        the runner removes unless `keep_intermediates: true`. Nothing in the
+        harness collects it, so the method's own view of a run - its resolved
+        schedule, budget and per-phase counters - is not currently kept.
+      - >-
+        Its phase trace opens one span, `run`, that is not in
+        `canonical_phases`; every other name it emits is
+        (src/timing/phase_recorder.cpp). Nothing validates phase names against
+        that list, so the span is carried through and reported as-is.
+      - >-
+        src/timing/bench_timer.h is byte-identical to the header vendored into
+        the ten campaign forks (md5 0000b6aa333034796d3a0d22c6a0598f, verified
+        against ACMH's and ACMMP's copies at the SHAs pinned here), so its
+        phase boundaries are produced by the same code as theirs.
+      - >-
+        Its argument parser rejects an unrecognised flag
+        (ConfigErrorKind::unknown_flag), so the shared --no-debug-output must
+        not be passed to it. It has no debug-artefact path to disable: the run
+        fails if the timed region opens any file for writing at all
+        (src/app/main.cpp, the writable-descriptor check around the timed
+        seam).
+    harness_deviations:
+      - class: interface
+        description: >-
+          IT SHIPS NO CONVERTER. The shared colmap2mvsnet_acm_perf prepares its
+          input in BOTH configurations, `author` included, which no other
+          method's `author` does - every other method runs its own converter
+          there and only `norm10` substitutes the shared one. Its `author`
+          input is therefore byte-comparable with the ACM-lineage methods'
+          (whose shipped converters are view-selection-identical to the shared
+          one) but NOT with APD-MVS's or DPE-MVS's, whose own converters pad,
+          re-encode and optionally rescale. Declared as
+          `converter_source: shared`.
+        reversible: no
+        affects: quality
+      - class: normalization
+        description: >-
+          --num-source-views 20 in every configuration, against a shipped
+          default of 10. 20 is what every other method's own converter emits
+          under `author`, so this equalises the view budget with the baselines
+          it is compared against; the value is a run-time flag, not a rebuild.
+        reversible: flag --num-source-views 10
+        affects: timing,memory,quality
+      - class: normalization
+        description: >-
+          "norm10: the shared converter emits 10 source views instead of 20.
+          Because the same converter also prepares this method's `author`
+          input, its author->norm10 delta is a PURE view-count effect - the
+          converter effect that confounds every other method's delta
+          (param-survey § C) is absent here, which makes it the reference
+          against which the others' confounding can be read."
+        reversible: flag --neighbours=20
+        affects: timing,memory,quality
+      - class: interface
+        description: >-
+          The harness supplies the seed. --seed is a required argument with no
+          default, and the invocation passes the run's repeat index, so the
+          repeats of one (method, scene, width, configuration) are independent
+          draws rather than N re-measurements of one, and re-running the
+          specification reproduces the same seeds.
+        reversible: no
+        affects: none
+      - class: normalization
+        description: >-
+          R-EXP-11 (debug artefact output off) needs no action for this method:
+          it writes no debug artefacts and the run fails if the timed region
+          opens any file for writing. The harness must NOT pass
+          --no-debug-output to it -- the binary rejects unknown flags.
+        reversible: no
+        affects: none
