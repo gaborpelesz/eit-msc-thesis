@@ -125,6 +125,17 @@ def status(entry):
     return entry.get("status") or "active"
 
 
+def is_own(entry):
+    """A method the thesis author wrote, living in this repository.
+
+    It has no upstream to deviate from, so the whole fork-point machinery --
+    the `upstream-base` tag, the trailer-carrying commit range, the
+    superproject gitlink -- does not apply to it. What takes their place is
+    the superproject's own HEAD, recorded in every run record like a fork SHA.
+    """
+    return entry.get("provenance") == "own"
+
+
 def is_measurable(entry):
     """May a run be produced from this method at all?"""
     return status(entry) in MEASURABLE_STATUSES
