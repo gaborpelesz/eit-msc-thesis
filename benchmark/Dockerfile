@@ -217,7 +217,8 @@ RUN cd /sota/DPE-MVS/DPE-MVS \
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# ETH3D evaluator, upstream ETH3D/multi-view-evaluation pinned by the submodule;
+# ETH3D evaluator, the gaborpelesz/multi-view-evaluation fork of upstream
+# ETH3D/multi-view-evaluation, pinned by the submodule;
 # the patch only lifts the C++ standard and the PCL version floor so it builds
 # with clang-18 / PCL 1.14 (no change to what is computed).
 WORKDIR /multi-view-evaluation

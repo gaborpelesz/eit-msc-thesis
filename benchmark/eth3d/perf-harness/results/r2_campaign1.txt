@@ -1,0 +1,72 @@
+dataset   /Users/gaborpelesz/Desktop/elte-thesis-2026/mve-opt-worktrees/_harness/data/bench
+host      Apple M5 Max  18 cpu (6P+12E)  Darwin 25.6.0
+protocol  11 repeats (+2 warmup), variants interleaved round-robin in seeded-random order (seed 20260914), OMP_WAIT_POLICY=PASSIVE
+preflight 95% CPU idle, loadavg 2.22, AC power True
+
+--- threads = 1 ----------------------------------------------------------
+variant                  median      p95      min      max  relMAD  cpu/wl  RSS MB  speedup          95% CI  sig
+----------------------------------------------------------------------------------------------------------------
+grid-nn                   1.572    1.618    1.560    1.618   0.26%    0.99     907    1.82x  [1.82, 1.84]  yes
+band0-filter              2.062    2.085    2.043    2.085   0.26%    1.00    1032    1.39x  [1.39, 1.40]  yes
+voxel-presize             2.616    2.742    2.597    2.742   0.43%    1.00     968    1.10x  [1.09, 1.11]  yes
+link-diet                 2.853    2.882    2.821    2.882   0.61%    1.00     925    1.01x  [1.00, 1.01]   NO
+combo-c                   2.869    2.956    2.851    2.956   0.17%    1.00     962        -               -    -
+acc-scan-prep             2.877    2.967    2.860    2.967   0.42%    1.00     962    1.00x  [0.99, 1.00]   NO
+flann-subtree             2.884    2.975    2.866    2.975   0.42%    1.00     962    0.99x  [0.99, 1.00]   NO
+overlap-prepare           2.885    2.972    2.859    2.972   0.33%    1.00     970    0.99x  [0.99, 1.00]   NO
+baseline                  8.731    8.930    8.655    8.930   0.61%    1.00    1816    0.33x  [0.33, 0.33]  yes
+
+  phase medians (s)             load  completeness      accuracy
+  grid-nn                      0.011         0.696         0.778
+  band0-filter                 0.011         1.180         0.781
+  voxel-presize                0.011         1.863         0.652
+  link-diet                    0.011         2.034         0.779
+  combo-c                      0.011         2.000         0.775
+  acc-scan-prep                0.012         2.000         0.780
+  flann-subtree                0.011         2.004         0.777
+  overlap-prepare              0.011         2.011         0.776
+  baseline                     0.490         4.180         3.946
+
+--- threads = 12 ----------------------------------------------------------
+variant                  median      p95      min      max  relMAD  cpu/wl  RSS MB  speedup          95% CI  sig
+----------------------------------------------------------------------------------------------------------------
+grid-nn                   0.760    0.787    0.754    0.787   0.30%    2.39     907    2.01x  [1.97, 2.03]  yes
+flann-subtree             1.050    1.084    1.018    1.084   1.86%    4.76    1040    1.45x  [1.41, 1.49]  yes
+voxel-presize             1.253    1.268    1.228    1.268   0.75%    3.80     970    1.22x  [1.20, 1.24]  yes
+overlap-prepare           1.285    1.328    1.249    1.328   1.08%    3.83     966    1.19x  [1.16, 1.21]  yes
+band0-filter              1.366    1.401    1.348    1.401   0.29%    2.12    1033    1.12x  [1.10, 1.13]  yes
+link-diet                 1.466    1.475    1.438    1.475   0.35%    3.32     926    1.04x  [1.02, 1.05]  yes
+acc-scan-prep             1.500    1.526    1.470    1.526   0.89%    3.20    1000    1.02x  [1.00, 1.03]   NO
+combo-c                   1.526    1.562    1.495    1.562   1.32%    3.27     963        -               -    -
+baseline                 11.450   11.497   11.380   11.497   0.13%    6.12    1817    0.13x  [0.13, 0.13]  yes
+
+  phase medians (s)             load  completeness      accuracy
+  grid-nn                      0.012         0.331         0.331
+  flann-subtree                0.012         0.618         0.333
+  voxel-presize                0.012         0.957         0.198
+  overlap-prepare              0.012         0.856         0.329
+  band0-filter                 0.012         0.932         0.331
+  link-diet                    0.012         1.100         0.331
+  acc-scan-prep                0.012         1.086         0.313
+  combo-c                      0.012         1.100         0.328
+  baseline                     0.498         6.825         4.016
+
+--- thread scaling (>1.0 = faster with more threads) ------------------------
+  1->12 threads
+    variant                  total      load  completeness  accuracy   note
+    acc-scan-prep             1.92      0.96          1.84      2.49   SELF-SERIALIZING: load
+    band0-filter              1.51      0.95          1.27      2.36   SELF-SERIALIZING: load
+    baseline                  0.76      0.99          0.61      0.98   SELF-SERIALIZING: accuracy,completeness,load,total
+    combo-c                   1.88      0.98          1.82      2.36   SELF-SERIALIZING: load
+    flann-subtree             2.75      0.97          3.24      2.33   SELF-SERIALIZING: load
+    grid-nn                   2.07      0.97          2.10      2.35   SELF-SERIALIZING: load
+    link-diet                 1.95      0.96          1.85      2.36   SELF-SERIALIZING: load
+    overlap-prepare           2.24      0.96          2.35      2.36   SELF-SERIALIZING: load
+    voxel-presize             2.09      0.97          1.95      3.30   SELF-SERIALIZING: load
+
+    Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5
+    Completenesses: 0.779048 0.993418 0.999978 1 1 1
+    Accuracies: 0.847724 0.957579 0.981792 0.984681 0.987323 0.992106
+    F1-scores: 0.811936 0.975169 0.990801 0.992281 0.993621 0.996037
+
+[exited with code 0]

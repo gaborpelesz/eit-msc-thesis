@@ -1,0 +1,37 @@
+{
+  "files": {
+    "reconstruction.ply": {
+      "bytes": 4865592,
+      "sha256": "a4ee65802f0117dc05f91566f49f0235477e2ec66ebacb5c418440308214231f"
+    },
+    "scan1.ply": {
+      "bytes": 2764020,
+      "sha256": "eeee9c955bd86b11c0edcefe6b72ee07781bb7b54aeb9bec25b789c79274f230"
+    },
+    "scan2.ply": {
+      "bytes": 2765172,
+      "sha256": "d5d7af5f0e01da25714b4bcfba8e30e21cadd9af484ed859901809c39e48a204"
+    },
+    "scan_alignment.mlp": {
+      "bytes": 612,
+      "sha256": "5c54ed1469a7c1f03cf6e3a4d6d9c57a8ac58d7c5b08e275493b2d248ac6d5d2"
+    }
+  },
+  "generator": "gen_dataset.py",
+  "gt_points_total": 460746,
+  "n_az": 700,
+  "n_inc": 350,
+  "n_scans": 2,
+  "preset": "tiny",
+  "recon_keep": 0.88,
+  "recon_noise_sigma_m": 0.006,
+  "recon_outlier_frac": 0.025,
+  "recon_outlier_sigma_m": 0.35,
+  "recon_points": 405456,
+  "room_extent": [
+    12.0,
+    10.0,
+    4.0
+  ],
+  "seed": 20260913
+}

@@ -1,0 +1,26 @@
+{
+  "binary": "/Users/gaborpelesz/Desktop/elte-thesis-2026/mve-opt-worktrees/baseline/build/ETH3DMultiViewEvaluation",
+  "cloud_sha256": {
+    "acc.tolerance_0.01.ply": "519e35c748e2e11e61c711007a32201ef2eb3ccf63425cfedfef46e2fb0b0d06",
+    "acc.tolerance_0.02.ply": "4c1bf83eb357306b0835f2d7e1ec207425ddb322e13a43679cb31be7c5322831",
+    "acc.tolerance_0.05.ply": "0523f2fdc71685ce2eecbb7e9c4b529ec8ce01ff62e016793199fe3f39ede2c3",
+    "acc.tolerance_0.1.ply": "8c71959a3f1e3e22f65daaf27f2ffc750ddfe9db2a092cae6cc5e5f4beb88d65",
+    "acc.tolerance_0.2.ply": "ce20b966f380e2fd3a36017b2fd07dcf5016073eaeec32ddec19c6e875a30718",
+    "acc.tolerance_0.5.ply": "6eb1090b84a372ed913ebc682a21964b051b77792c09797ccb684bcf3419a9f8",
+    "cmp.tolerance_0.01.ply": "1b17f4c0be3971d7e32ffc7252e75a8f92260db19af45b081e54dbfdbd38db6a",
+    "cmp.tolerance_0.02.ply": "0cf87732e60a6751b840c2015af59316877b4c74c033fe41edac98fa89b00570",
+    "cmp.tolerance_0.05.ply": "406032b98f84e50a184564780ed76b9166f8d685b41e45b0c404b0a439799aa8",
+    "cmp.tolerance_0.1.ply": "a857fd48aa5ca23f12b0a3f807fe11669d4982ac45fb53238453f0a8b9c510ec",
+    "cmp.tolerance_0.2.ply": "3677735049d3c52dae39bf24581f9b94d9f6546a1e96ec5d900fa5b166d26d1d",
+    "cmp.tolerance_0.5.ply": "3677735049d3c52dae39bf24581f9b94d9f6546a1e96ec5d900fa5b166d26d1d"
+  },
+  "dataset": "/Users/gaborpelesz/Desktop/elte-thesis-2026/mve-opt-worktrees/_harness/data/bench",
+  "n_clouds": 12,
+  "result_lines": [
+    "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+    "Completenesses: 0.779048 0.993418 0.999978 1 1 1",
+    "Accuracies: 0.847724 0.957579 0.981792 0.984681 0.987323 0.992106",
+    "F1-scores: 0.811936 0.975169 0.990801 0.992281 0.993621 0.996037"
+  ],
+  "tolerances": "0.01,0.02,0.05,0.1,0.2,0.5"
+}
