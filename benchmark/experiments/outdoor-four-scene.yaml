@@ -1,0 +1,61 @@
+# Six methods on four outdoor ETH3D scenes.
+#
+# Every campaign so far has run on the five scenes whose images are all one
+# size. That was not a choice about content: APD-MVS and DPE-MVS abort on a
+# scene whose images differ in size (F-007), and those five are uniform. Six of
+# the thirteen ETH3D training scenes carry per-camera undistortion crops that
+# differ by a few pixels (F-021), and every outdoor scene except `meadow` is one
+# of them. So the indoor bias in the results to date is an artefact of that
+# constraint, and this campaign is the first to leave it.
+#
+# It runs under `author`, where each method uses its own shipped converter. The
+# APD/DPE converters pad to the scene maximum (F-006), which is what lets those
+# two run here at all; R-EXP-09's `padding: all` is for the shared-converter
+# configurations and is deliberately not set.
+#
+# `meadow` is the control: 15 images, one camera, no padding anywhere. If the
+# outdoor results diverge from the indoor ones on the padded scenes but not on
+# meadow, padding is a candidate explanation rather than the scene content.
+#
+# The four scenes were prepared with benchmark/eth3d/prepare_scene.py, which
+# reproduces the existing five to within the JPEG noise floor (0.52 grey levels
+# mean, file sizes within 2%) but NOT bit-exactly -- the original resampling
+# filter is unrecoverable from re-encoded JPEGs. That is a disclosed difference
+# between this scene set and the earlier one.
+#
+# One repeat per (method, scene): a comparison campaign, not a thesis
+# measurement (R-STA-01).
+
+version: 1
+campaign: outdoor-four-scene
+image: mvs-bench:sm75-quorum
+
+methods:
+  - ACMMP
+  - APD-MVS
+  - MP-MVS
+  - DPE-MVS
+  - CUMVS
+  - quorum-mvs
+scenes: [courtyard, playground, terrace, meadow]
+widths: [3200]
+configurations: [author]
+repeats: 1
+
+# Worst measured cost is DPE-MVS at 124.3 s/image (kicker); the largest scene
+# here is 38 images, so ~4700 s. Six hours leaves room for an outdoor scene
+# being harder than any indoor one measured so far.
+timeout_seconds: 21600
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+evaluator_sha: e63cda48ad9c9090b833439caf518a4b51c85a06
+
+fingerprint: {}
+
+paths:
+  dataset_root: /mnt/samsung2tb/eth3d
+  results_root: /data/bench/results
+  work_root: /data/bench/work
+  artifacts_root: /data/bench/clouds
