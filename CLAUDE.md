@@ -38,12 +38,14 @@ with `file:line` and the fork SHA it was read at.
 All submodules are declared in the repo-root `.gitmodules`; git does not read a
 `.gitmodules` in a subdirectory.
 
-**The superproject is currently PRIVATE on GitHub.** Earlier text here asserted
-it was public; it is not, and no rule below should be read as "this is already
-visible to the world". Treat it instead as a repository that may be published at
-or after submission: everything committed to it is written to be publishable,
-and anything that must never be published lives in one of the private submodules
-above, which do not travel with it.
+**The superproject is PRIVATE on GitHub, temporarily and deliberately.** It was
+made private while the author's own method was extracted into its own repository,
+and it goes public again once that extraction is complete — Quorum MVS is then
+private independently of it. Earlier text here asserted the superproject was
+already public; it is not, but it is about to be, which is the stricter reading
+of the two. Write everything committed here to be publishable, and keep anything
+that must never be published in one of the private submodules above, which do
+not travel with it.
 
 - `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`,
   plus `quorum-mvs` below, which is not a fork.

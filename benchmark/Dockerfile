@@ -215,6 +215,29 @@ RUN cd /sota/DPE-MVS/DPE-MVS \
       -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
     && cmake --build build
 
+# Quorum MVS, the thesis author's own method (`provenance: own`). Not a fork, so
+# it has no upstream stanza above it; it builds exactly like the forks do, and
+# deliberately with the same BENCH_PHASES switch. Its src/timing/bench_timer.h is
+# md5-identical to ACMH's and ACMMP's copies, so omitting the flag here would
+# leave the own method carrying the phase timer while the ten forks honour the
+# switch -- a timing asymmetry in its own favour, in exactly the comparison this
+# thesis is built on.
+#
+# The submodule is PRIVATE. `docker build` reads the checked-out working tree, so
+# this layer only builds for someone who could clone it; for anyone else the COPY
+# fails loudly rather than silently producing an image with thirteen methods.
+COPY methods/quorum-mvs/ /sota/quorum-mvs/
+RUN cd /sota/quorum-mvs \
+    && cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=clang-18 \
+      -DCMAKE_CXX_COMPILER=clang++-18 \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda-12.8/bin/nvcc \
+      -DCMAKE_CUDA_HOST_COMPILER=clang++-18 \
+      -DCMAKE_CXX_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+      -DCMAKE_CUDA_FLAGS=-DBENCH_PHASES=${BENCH_PHASES} \
+    && cmake --build build
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # ETH3D evaluator, the gaborpelesz/multi-view-evaluation fork of upstream
