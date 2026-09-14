@@ -223,8 +223,12 @@ global_deviations:
     description: >-
       ETH3D evaluator. Scoring runs against the gaborpelesz fork of
       ETH3D/multi-view-evaluation rather than upstream, built
-      CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=OFF and the fork's
-      MVE_NATIVE_ARCH and MVE_LTO defaults (both ON). The fork changes only how
+      CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=OFF, MVE_LTO=OFF and
+      the fork's MVE_NATIVE_ARCH default (ON). ThinLTO is off because the image
+      carries no llvm-ar/llvm-ranlib, so CMake's IPO probe fails and skips it
+      silently; the flag is set explicitly so the build stops requesting an
+      optimisation it does not receive. Every number below was measured on a
+      non-LTO binary. The fork changes only how
       fast the scoring runs: it adds a lean PLY reader in place of PCL's
       general one, parallelises the grid build, and raises -O2 to -O3 with
       ThinLTO, and its own gate hashes the twelve per-point classification

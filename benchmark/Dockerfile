@@ -226,16 +226,21 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # MVE_PCL_IO_FALLBACK=OFF is the configuration the speedup is claimed and
 # verified for: the lean reader handles the ETH3D scans directly, and linking
 # PCL's io pulls in VTK, whose cmake exports an unresolvable MPI target here.
-# MVE_NATIVE_ARCH and MVE_LTO are left at their ON defaults because that is the
-# binary the equivalence check was run against -- but native arch means this
-# layer is only valid on the ISA it was built on, which the campaign's hardware
-# fingerprint already pins.
+# MVE_LTO=OFF is explicit because this image cannot do ThinLTO: it carries no
+# llvm-ar/llvm-ranlib, so CMake's IPO probe fails and silently skips it. Left at
+# its ON default the build requests an optimisation it does not get, which is
+# the kind of gap that turns into a wrong claim later. MVE_NATIVE_ARCH keeps its
+# ON default -- that is the binary every equivalence check here was run against
+# -- but it means this layer is valid only on the ISA it was compiled on, the
+# fork's CMakeLists documenting that this program is not invariant to FMA
+# contraction. The campaign's hardware fingerprint already pins that.
 WORKDIR /multi-view-evaluation
 ADD eth3d/multi-view-evaluation /multi-view-evaluation
 RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
       -DMVE_PCL_IO_FALLBACK=OFF \
+      -DMVE_LTO=OFF \
     && cmake --build build \
     && cp build/ETH3DMultiViewEvaluation /usr/local/bin/ETH3DMultiViewEvaluation
 
