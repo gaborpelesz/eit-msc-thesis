@@ -55,9 +55,12 @@
 #                   that it preprocesses with a compiled initializer.
 #   output_ply      produced point cloud, relative to the PREPARED dataset dir
 #   invocation      argv template. Placeholders: {executable}, {dataset_dir},
-#                   {output_dir}, {gpu_index}, {config}. {config} expands to the
-#                   method's `config_path`; MP-MVS is the only method that takes
-#                   one (see its known_limitations).
+#                   {output_dir}, {gpu_index}, {config}, {repeat}. {config}
+#                   expands to the method's `config_path`; MP-MVS is the only
+#                   method that takes one (see its known_limitations).
+#                   {repeat} is the run's repeat index, 1-based, for a method
+#                   whose RNG seed is a required argument: the repeats of a
+#                   randomized method must not all draw the same seed.
 #   fork_sha        null means "must equal the submodule's checked-out HEAD";
 #                   a SHA pins the fork to an exact commit. Left null until the
 #                   audit rewrite of the forks lands.

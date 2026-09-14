@@ -77,6 +77,22 @@ def test_cumvs_preprocessing_is_its_own_initialiser(write_spec, spec_dict, manif
     assert method_argv[-1] == "--output-directory=/work/prepared/CUMVS"
 
 
+def test_the_repeat_index_reaches_the_invocation_template(write_spec, spec_dict, manifest):
+    """A method whose seed is a required argument has to write it in terms of
+    something that differs per repeat and is stable across a re-run."""
+    spec = _spec(write_spec, spec_dict, manifest, methods=["ACMM"])
+    entry = dict(
+        sp.method_entry(manifest, "ACMM"),
+        invocation=["{executable}", "{dataset_dir}", "--seed", "{repeat}"],
+    )
+    seeds = {
+        rn.resolve_invocation(spec, entry, run)[-1]
+        for run in sp.expand(spec)
+        if run.width == 3200
+    }
+    assert seeds == {"1", "2"}
+
+
 def test_converter_source_shared_uses_the_shared_converter_under_author(
     write_spec, spec_dict, manifest
 ):

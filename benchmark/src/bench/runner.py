@@ -137,6 +137,13 @@ def placeholder_values(spec, entry, run):
         # index is always 0; the host index is recorded in the fingerprint.
         "gpu_index": "0",
         "config": entry.get("config_path") or "",
+        # A method whose RNG seed is a required argument has no default to fall
+        # back on, and a campaign's repeats must not all draw the same one:
+        # PatchMatch is randomized and R-STA-01's repeats exist to measure that
+        # spread. The repeat index is the only per-run number the harness has
+        # that is stable across a re-run of the same specification, so it is
+        # what such a method's seed is written in terms of.
+        "repeat": str(run.repeat),
     }
 
 
