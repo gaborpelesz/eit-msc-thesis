@@ -90,13 +90,25 @@ def verify_fields(method, report):
             f"`status: {status}` requires a `reason:` saying why",
         )
 
-    base = str(method.get("upstream_base", ""))
-    report.check(
-        name,
-        "upstream_base is a full SHA",
-        bool(mf.SHA_RE.match(base)),
-        f"`{base}` is not a 40-character SHA",
-    )
+    if mf.is_own(method):
+        # Spelled as a positive check rather than a skip: an own method that
+        # named an upstream would be claiming a fork point it does not have,
+        # and that is exactly the provenance error this file exists to catch.
+        report.check(
+            name,
+            "own method declares no upstream",
+            method.get("upstream") is None and method.get("upstream_base") is None,
+            f"provenance `own` requires `upstream: null` and `upstream_base: null`, "
+            f"found `{method.get('upstream')}` and `{method.get('upstream_base')}`",
+        )
+    else:
+        base = str(method.get("upstream_base", ""))
+        report.check(
+            name,
+            "upstream_base is a full SHA",
+            bool(mf.SHA_RE.match(base)),
+            f"`{base}` is not a 40-character SHA",
+        )
 
     for entry in method.get("harness_deviations", []) or []:
         label = str(entry.get("description", ""))[:32].replace("\n", " ")
@@ -171,6 +183,46 @@ def verify_git(method, root, report):
     """Fork point, HEAD, and the superproject's record of it."""
     name = method.get("name", "<unnamed>")
     fork = root / method["path"]
+
+    if mf.is_own(method):
+        report.check(
+            name, "own method directory present", fork.is_dir(), f"{fork} is not a directory"
+        )
+        # An own method may live in this repository or in a repository of its
+        # own. When it is a submodule, the SHA a run record quotes is the
+        # gitlink, so the gitlink is what has to agree with the checked-out
+        # HEAD; the superproject's HEAD says nothing about which revision of the
+        # method ran. An uninitialised private submodule (a clone without
+        # access) leaves both unchecked rather than failing.
+        submodule = mf.is_initialised_submodule(fork)
+        if submodule:
+            head = mf.head_sha(fork)
+            recorded = mf.gitlink_sha(root, method["path"])
+            report.check(
+                name,
+                "superproject gitlink",
+                recorded == head,
+                f"superproject records `{recorded or 'nothing'}`, "
+                f"own method HEAD is `{head}`",
+            )
+        else:
+            head = mf.head_sha(root)
+        where = "own submodule HEAD" if submodule else "superproject HEAD"
+        fork_sha = method.get("fork_sha")
+        if fork_sha is None:
+            report.check(name, "fork_sha", True, note=f"null, pinned to {where} {head[:12]}")
+        else:
+            report.check(
+                name,
+                "fork_sha",
+                fork_sha == head,
+                f"manifest says `{fork_sha}`, {where} is `{head}`",
+            )
+        # Returning None keeps verify_commits away: there is no
+        # upstream-base..HEAD range to read trailers from. An own method's
+        # disclosure is its params provenance table and its harness_deviations,
+        # both checked above.
+        return None
 
     initialised = mf.is_initialised_submodule(fork)
     report.check(
