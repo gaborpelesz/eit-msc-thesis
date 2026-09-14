@@ -44,6 +44,15 @@
 #                   fork root. The `author` configuration runs it (pipeline as
 #                   released); `norm10` substitutes the shared converter (see
 #                   configurations and global_deviations).
+#   converter_source `fork` (the default, and what `converter` above describes)
+#                   or `shared`. `shared` says the method ships no converter at
+#                   all, so the harness's colmap2mvsnet_acm_perf prepares its
+#                   input in EVERY configuration, `author` included. That makes
+#                   such a method's `author` unlike every other method's, and
+#                   the asymmetry is declared as a harness deviation on the
+#                   entry rather than left to be inferred from `converter:
+#                   null` -- which CUMVS also has, for the unrelated reason
+#                   that it preprocesses with a compiled initializer.
 #   output_ply      produced point cloud, relative to the PREPARED dataset dir
 #   invocation      argv template. Placeholders: {executable}, {dataset_dir},
 #                   {output_dir}, {gpu_index}, {config}. {config} expands to the

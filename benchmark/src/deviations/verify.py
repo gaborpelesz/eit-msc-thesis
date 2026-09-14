@@ -154,8 +154,27 @@ def verify_files(method, root, report):
         f"{cmakelists} does not exist",
     )
 
+    source = mf.converter_source(method)
+    report.check(
+        name,
+        "converter_source",
+        source in mf.CONVERTER_SOURCES,
+        f"`{source}` is not one of {', '.join(mf.CONVERTER_SOURCES)}",
+    )
+
     converter = method.get("converter")
-    if converter is None:
+    if source == "shared":
+        # The asymmetry this declares -- the shared converter under `author`
+        # too -- is a harness deviation on the entry, so it is only admissible
+        # while the file it names is where the manifest says it is.
+        report.check(
+            name,
+            "shared converter",
+            converter is None and (root / mf.SHARED_CONVERTER).is_file(),
+            f"`converter_source: shared` requires `converter: null` (found "
+            f"`{converter}`) and {root / mf.SHARED_CONVERTER} to exist",
+        )
+    elif converter is None:
         initializer = method.get("initializer")
         if initializer is None and not mf.is_measurable(method):
             # Nothing to prepare input with, and nothing to run it on. A

@@ -22,6 +22,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from deviations import manifest as mf
+
 from . import evaluate as ev
 from . import fingerprint as fpr
 from . import phases as ph
@@ -195,16 +197,19 @@ def preprocess_argv(spec, entry, run):
 
     Under `author` the fork's own converter is used (R-EXP-06); under any other
     configuration the shared converter, with the configuration's arguments
-    (R-EXP-08).
+    (R-EXP-08). A method declaring `converter_source: shared` ships no
+    converter of its own, so the shared one prepares its input in every
+    configuration, `author` included.
     """
     values = placeholder_values(spec, entry, run)
-    if entry.get("converter") is None:
+    shared_converter = mf.converter_source(entry) == "shared"
+    if entry.get("converter") is None and not shared_converter:
         if not entry.get("initializer_invocation"):
             raise RunnerError(f"{entry['name']}: no converter and no initializer in methods.yaml")
         argv = [t.format(**values) for t in entry["initializer_invocation"]]
         return argv + list(spec.initializer_args.get(run.configuration, []))
 
-    if run.configuration == "author":
+    if run.configuration == "author" and not shared_converter:
         converter = f"{container_method_root(spec, entry)}/{entry['converter']}"
         extra = []
     else:
