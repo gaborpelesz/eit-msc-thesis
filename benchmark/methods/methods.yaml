@@ -246,7 +246,7 @@ global_deviations:
       ThinLTO, and its own gate hashes the twelve per-point classification
       clouds as well as the four printed result lines. Independently
       re-verified here on six real campaign clouds (6.1M to 40.2M points,
-      LeanMVS / APD-MVS / ACMMP / MP-MVS) at the campaign's own tolerances:
+      Quorum MVS / APD-MVS / ACMMP / MP-MVS) at the campaign's own tolerances:
       max absolute difference 0.000e+00 over all 90 cells, 398.4 s to 51.0 s
       end to end; and inside the campaign image on delivery_area at 43.7M
       points, 129.05 s to 14.75 s with every printed digit unchanged. The
