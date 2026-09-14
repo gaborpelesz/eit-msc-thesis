@@ -38,7 +38,14 @@ with `file:line` and the fork SHA it was read at.
 All submodules are declared in the repo-root `.gitmodules`; git does not read a
 `.gitmodules` in a subdirectory.
 
-- `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`.
+- `benchmark/methods/*` — thirteen public method forks under `gaborpelesz/`,
+  plus `quorum-mvs` below, which is not a fork.
+- `benchmark/methods/quorum-mvs` — submodule name `quorum-mvs`, pointing at the
+  **private** `quorum-mvs`. It is the thesis author's own method
+  (`provenance: own`), not a fork of anyone's release, and it carries no
+  `upstream`/`upstream_base`. **This repo is public; that one is private and
+  stays private**, so `git clone --recursive` fails on it too for anyone
+  without access; the failure is benign.
 - `resources/papers` — submodule name `papers`, pointing at the **private**
   `eit-msc-thesis-papers`. It holds publisher versions of record (IEEE TPAMI
   camera-ready, IEEE PDFeXpress-certified PDFs) that may not be redistributed.
