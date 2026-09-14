@@ -28,6 +28,14 @@
       "status": "active"
     },
     {
+      "affects": "timing",
+      "class": "build",
+      "description": "ETH3D evaluator. Scoring runs against the gaborpelesz fork of ETH3D/multi-view-evaluation rather than upstream, built CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=OFF, MVE_LTO=OFF and the fork's MVE_NATIVE_ARCH default (ON). ThinLTO is off because the image carries no llvm-ar/llvm-ranlib, so CMake's IPO probe fails and skips it silently; the flag is set explicitly so the build stops requesting an optimisation it does not receive. Every number below was measured on a non-LTO binary. The fork changes only how fast the scoring runs: it adds a lean PLY reader in place of PCL's general one, parallelises the grid build, and raises -O2 to -O3 with ThinLTO, and its own gate hashes the twelve per-point classification clouds as well as the four printed result lines. Independently re-verified here on six real campaign clouds (6.1M to 40.2M points, LeanMVS / APD-MVS / ACMMP / MP-MVS) at the campaign's own tolerances: max absolute difference 0.000e+00 over all 90 cells, 398.4 s to 51.0 s end to end; and inside the campaign image on delivery_area at 43.7M points, 129.05 s to 14.75 s with every printed digit unchanged. The quality of a measurement is therefore unaffected and only the cost of taking it moves. MVE_NATIVE_ARCH=ON means the built layer is valid only on the ISA it was compiled on -- the fork's CMakeLists documents that this program is not invariant to FMA contraction -- which the campaign's hardware-fingerprint binding already enforces. No campaign predating the swap needs rescoring, but a campaign must not mix evaluator builds.",
+      "evidence": "benchmark/Dockerfile; benchmark/eth3d/perf-harness/README.md; F-073 verify block",
+      "reversible": false,
+      "status": "active"
+    },
+    {
       "affects": "quality,timing",
       "class": "normalization",
       "description": "In the `norm10` configuration one shared converter, `colmap2mvsnet_acm_perf`, replaces the shipped converter of every method and emits 10 source views instead of the shipped 20. View selection is byte-identical in all five shipped variants, so the substitution changes no neighbour ranking; it equalises the image bytes and intrinsics that variants D/E (APD-MVS, DVP-MVS, DPE-MVS) otherwise pad, re-encode and rescale. Applies to `norm10` only; `author` runs each fork's own converter (R-EXP-06). Padding under `norm10` is all-or-none per scene (R-EXP-09).",
@@ -1359,6 +1367,48 @@
       "status": "active",
       "upstream": "https://github.com/fixstars/cuda-multi-view-stereo",
       "upstream_base": "2efda9410ced0806b8f0ee3735cd5f14a6d4c99f"
+    },
+    {
+      "fork_deviations": [],
+      "fork_sha": "72af2e38d9ee4fa9ee117c82b53a7b7d4149897a",
+      "harness_deviations": [
+        {
+          "affects": "quality",
+          "class": "interface",
+          "description": "IT SHIPS NO CONVERTER. The shared colmap2mvsnet_acm_perf prepares its input in BOTH configurations, `author` included, which no other method's `author` does - every other method runs its own converter there and only `norm10` substitutes the shared one. Its `author` input is therefore byte-comparable with the ACM-lineage methods' (whose shipped converters are view-selection-identical to the shared one) but NOT with APD-MVS's or DPE-MVS's, whose own converters pad, re-encode and optionally rescale. Declared as `converter_source: shared`.",
+          "reversible": false
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "--num-source-views 20 in every configuration, against a shipped default of 10. 20 is what every other method's own converter emits under `author`, so this equalises the view budget with the baselines it is compared against; the value is a run-time flag, not a rebuild.",
+          "reversible": "flag --num-source-views 10"
+        },
+        {
+          "affects": "timing,memory,quality",
+          "class": "normalization",
+          "description": "\"norm10: the shared converter emits 10 source views instead of 20. Because the same converter also prepares this method's `author` input, its author->norm10 delta is a PURE view-count effect - the converter effect that confounds every other method's delta (param-survey \u00a7 C) is absent here, which makes it the reference against which the others' confounding can be read.\"",
+          "reversible": "flag --neighbours=20"
+        },
+        {
+          "affects": "none",
+          "class": "interface",
+          "description": "The harness supplies the seed. --seed is a required argument with no default, and the invocation passes the run's repeat index, so the repeats of one (method, scene, width, configuration) are independent draws rather than N re-measurements of one, and re-running the specification reproduces the same seeds.",
+          "reversible": false
+        },
+        {
+          "affects": "none",
+          "class": "normalization",
+          "description": "R-EXP-11 (debug artefact output off) needs no action for this method: it writes no debug artefacts and the run fails if the timed region opens any file for writing. The harness must NOT pass --no-debug-output to it -- the binary rejects unknown flags.",
+          "reversible": false
+        }
+      ],
+      "name": "quorum-mvs",
+      "path": "benchmark/methods/quorum-mvs",
+      "provenance": "own",
+      "status": "active",
+      "upstream": null,
+      "upstream_base": null
     }
   ]
 }

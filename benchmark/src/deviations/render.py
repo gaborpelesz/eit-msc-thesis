@@ -174,15 +174,24 @@ def markdown(doc):
     ]
 
     for method in doc["methods"]:
+        own = method["provenance"] == "own"
+        origin = (
+            ["- upstream: (none; not a fork)", "- upstream_base: (none; not a fork)"]
+            if own
+            else [
+                f"- upstream: {method['upstream']}",
+                f"- upstream_base: `{method['upstream_base']}`",
+            ]
+        )
         lines += [
             f"## {method['name']}",
             "",
             f"- provenance: `{method['provenance']}`",
             f"- status: `{method['status']}`",
             f"- path: `{method['path']}`",
-            f"- upstream: {method['upstream']}",
-            f"- upstream_base: `{method['upstream_base']}`",
-            f"- fork HEAD: `{method['fork_sha'] or '(submodule not initialised)'}`",
+            *origin,
+            f"- {'HEAD' if own else 'fork HEAD'}: "
+            f"`{method['fork_sha'] or '(submodule not initialised)'}`",
             "",
         ]
         if method["fork_deviations"]:
@@ -215,6 +224,14 @@ def markdown(doc):
                 "No commits after `upstream-base`: this fork has not been audited yet.",
                 "`status: pending` in the manifest, which says why; no run may name it,",
                 "so nothing in the result store comes from this code.",
+                "",
+            ]
+        elif own:
+            lines += [
+                "No `upstream-base..HEAD` range: this is the author's own method rather",
+                "than a fork, so there is no fork point and no per-commit deviation",
+                "trailers to read. What it deviates from is the harness's own defaults,",
+                "below.",
                 "",
             ]
         else:
@@ -282,10 +299,14 @@ def tex_deviations(doc):
     body = []
     for method in doc["methods"]:
         if not method["fork_deviations"]:
-            note = {
-                "excluded": "pristine fork, excluded from the campaign",
-                "pending": "pristine fork, pending audit, never measured",
-            }.get(method["status"], "no commits after the fork point")
+            note = (
+                "the author's own method, not a fork: no fork point"
+                if method["provenance"] == "own"
+                else {
+                    "excluded": "pristine fork, excluded from the campaign",
+                    "pending": "pristine fork, pending audit, never measured",
+                }.get(method["status"], "no commits after the fork point")
+            )
             body.append(
                 tex.row(
                     [
@@ -346,7 +367,9 @@ def tex_provenance(doc):
                     f"\\texttt{{{tex.cell(method['provenance'])}}}",
                     tex.cell(method["status"]),
                     f"\\url{{{method['upstream']}}}" if method["upstream"] else "--",
-                    f"\\texttt{{{tex.cell(_short(method['upstream_base']))}}}",
+                    f"\\texttt{{{tex.cell(_short(method['upstream_base']))}}}"
+                    if method["upstream_base"]
+                    else "--",
                     f"\\texttt{{{tex.cell(_short(method['fork_sha']))}}}"
                     if method["fork_sha"]
                     else "--",
