@@ -16,6 +16,7 @@ dependencies = [
     "psutil",
     "pyarrow",
     "nvidia-ml-py",
+    "pillow",
     "eth3d @ ${PROJECT_ROOT}/eth3d"
 ]
 

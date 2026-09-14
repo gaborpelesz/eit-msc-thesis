@@ -7,7 +7,7 @@
     "path": "benchmark/eth3d/multi-view-evaluation",
     "sha": "e63cda48ad9c9090b833439caf518a4b51c85a06"
   },
-  "generated_at": "2026-09-14T21:34:36.274496+00:00",
+  "generated_at": "2026-09-14T22:31:26.853887+00:00",
   "methods": [
     {
       "converter": {
@@ -194,7 +194,7 @@
   ],
   "pyproject": {
     "path": "benchmark/pyproject.toml",
-    "sha256": "9a1b12a0176710de0996049df2731c9dee8d74ada568ef46964a87ff761fc201"
+    "sha256": "d01af2326fc903af1ac75d9ca6c1872e544251cfc4f1a49a7f26cd4d328107ce"
   },
   "schema_version": 1,
   "shared_converter": {
@@ -203,6 +203,6 @@
   },
   "uv_lock": {
     "path": "benchmark/uv.lock",
-    "sha256": "a22e1e51a864f938cf385def3069e16f409e6e2d7bb28ea1366ffb3255195741"
+    "sha256": "8bbae3a374b8902f91f0876b3fd44c3e3a0ebb255b69c74be29a0477526e537b"
   }
 }
