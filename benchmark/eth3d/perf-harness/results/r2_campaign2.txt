@@ -1,0 +1,71 @@
+dataset   /Users/gaborpelesz/Desktop/elte-thesis-2026/mve-opt-worktrees/_harness/data/bench
+host      Apple M5 Max  18 cpu (6P+12E)  Darwin 25.6.0
+protocol  15 repeats (+2 warmup), variants interleaved round-robin in seeded-random order (seed 20260916), OMP_WAIT_POLICY=PASSIVE
+preflight 96% CPU idle, loadavg 2.64, AC power True
+
+--- threads = 1 ----------------------------------------------------------
+variant                  median      p95      min      max  relMAD  cpu/wl  RSS MB  speedup          95% CI  sig
+----------------------------------------------------------------------------------------------------------------
+combo-d                   1.234    1.260    1.225    1.260   0.72%    1.00     884    2.34x  [2.31, 2.36]  yes
+combo-f                   1.316    1.339    1.292    1.339   0.33%    0.99     921    2.19x  [2.18, 2.21]  yes
+grid-nn                   1.574    1.638    1.556    1.638   0.48%    0.99     907    1.83x  [1.82, 1.85]  yes
+combo-e                   1.724    1.830    1.705    1.830   0.87%    1.00    1007    1.67x  [1.65, 1.69]  yes
+band0-filter              2.068    2.079    2.034    2.079   0.45%    1.00    1032    1.39x  [1.39, 1.41]  yes
+voxel-presize             2.613    2.736    2.583    2.736   0.94%    1.00     968    1.10x  [1.09, 1.11]  yes
+flann-subtree             2.879    2.990    2.847    2.990   0.73%    1.00     962    1.00x  [0.99, 1.01]   NO
+combo-c                   2.884    2.963    2.848    2.963   0.42%    1.00     962        -               -    -
+baseline                  8.716    8.852    8.632    8.852   0.44%    1.00    1816    0.33x  [0.33, 0.33]  yes
+
+  phase medians (s)             load  completeness      accuracy
+  combo-d                      0.011         0.549         0.651
+  combo-f                      0.011         0.568         0.652
+  grid-nn                      0.011         0.695         0.781
+  combo-e                      0.011         1.039         0.649
+  band0-filter                 0.011         1.190         0.781
+  voxel-presize                0.011         1.862         0.653
+  flann-subtree                0.011         2.009         0.778
+  combo-c                      0.011         2.010         0.779
+  baseline                     0.486         4.172         3.965
+
+--- threads = 12 ----------------------------------------------------------
+variant                  median      p95      min      max  relMAD  cpu/wl  RSS MB  speedup          95% CI  sig
+----------------------------------------------------------------------------------------------------------------
+combo-d                   0.398    0.409    0.395    0.409   0.50%    3.72     949    3.84x  [3.80, 3.88]  yes
+combo-e                   0.465    0.514    0.457    0.514   0.51%    6.72    1177    3.29x  [3.26, 3.33]  yes
+combo-f                   0.480    0.484    0.474    0.484   0.24%    3.23     921    3.19x  [3.16, 3.22]  yes
+grid-nn                   0.765    0.776    0.756    0.776   0.36%    2.39     907    2.00x  [1.98, 2.02]  yes
+flann-subtree             1.063    1.139    1.028    1.139   1.86%    4.89    1040    1.44x  [1.41, 1.48]  yes
+voxel-presize             1.230    1.275    1.217    1.275   0.72%    3.68     970    1.24x  [1.22, 1.26]  yes
+band0-filter              1.365    1.372    1.350    1.372   0.35%    2.11    1033    1.12x  [1.11, 1.13]  yes
+combo-c                   1.529    1.571    1.502    1.571   0.94%    3.22     963        -               -    -
+baseline                 11.428   11.617   11.333   11.617   0.38%    6.13    1817    0.13x  [0.13, 0.14]  yes
+
+  phase medians (s)             load  completeness      accuracy
+  combo-d                      0.012         0.181         0.181
+  combo-e                      0.012         0.246         0.180
+  combo-f                      0.012         0.182         0.197
+  grid-nn                      0.012         0.333         0.330
+  flann-subtree                0.012         0.632         0.332
+  voxel-presize                0.012         0.933         0.197
+  band0-filter                 0.012         0.934         0.331
+  combo-c                      0.012         1.099         0.328
+  baseline                     0.495         6.826         4.008
+
+--- thread scaling (>1.0 = faster with more threads) ------------------------
+  1->12 threads
+    variant                  total      load  completeness  accuracy   note
+    band0-filter              1.51      0.97          1.27      2.36   SELF-SERIALIZING: load
+    baseline                  0.76      0.98          0.61      0.99   SELF-SERIALIZING: accuracy,completeness,load,total
+    combo-c                   1.89      0.96          1.83      2.37   SELF-SERIALIZING: load
+    combo-d                   3.10      0.94          3.04      3.61   SELF-SERIALIZING: load
+    combo-e                   3.71      0.94          4.23      3.61   SELF-SERIALIZING: load
+    combo-f                   2.74      0.96          3.11      3.31   SELF-SERIALIZING: load
+    flann-subtree             2.71      0.97          3.18      2.34   SELF-SERIALIZING: load
+    grid-nn                   2.06      0.96          2.09      2.37   SELF-SERIALIZING: load
+    voxel-presize             2.12      0.97          1.99      3.32   SELF-SERIALIZING: load
+
+    Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5
+    Completenesses: 0.779048 0.993418 0.999978 1 1 1
+    Accuracies: 0.847724 0.957579 0.981792 0.984681 0.987323 0.992106
+    F1-scores: 0.811936 0.975169 0.990801 0.992281 0.993621 0.996037
+

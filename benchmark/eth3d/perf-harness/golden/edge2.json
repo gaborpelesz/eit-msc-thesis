@@ -1,0 +1,242 @@
+{
+ "collinear-70k@1": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.02.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.05.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.1.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.2.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.5.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "cmp.tolerance_0.01.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.02.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.05.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.1.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.2.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.5.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 1 1 1 1 1 1",
+   "Accuracies: 1 1 1 1 1 1",
+   "F1-scores: 1 1 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "collinear-70k@12": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.02.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.05.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.1.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.2.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "acc.tolerance_0.5.ply": "42a740794fb7c2c67732ec1d5186ff24575bed00fcf8831110cfa1872883fb40",
+   "cmp.tolerance_0.01.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.02.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.05.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.1.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.2.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c",
+   "cmp.tolerance_0.5.ply": "660ef18f2c0ff4826810664694fc82b0211bbeb6234e468533323d363849c89c"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 1 1 1 1 1 1",
+   "Accuracies: 1 1 1 1 1 1",
+   "F1-scores: 1 1 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "density-extreme-120k@1": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.02.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.05.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.1.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.2.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.5.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "cmp.tolerance_0.01.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.02.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.05.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.1.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.2.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.5.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 1 1 1 1 1 1",
+   "Accuracies: 1 1 1 1 1 1",
+   "F1-scores: 1 1 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "density-extreme-120k@12": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.02.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.05.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.1.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.2.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "acc.tolerance_0.5.ply": "ffcb64a7c3d7ddd2eaa4805a5acad8997c949583bafde4ed2cf28a9e0bb7c7c6",
+   "cmp.tolerance_0.01.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.02.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.05.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.1.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.2.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9",
+   "cmp.tolerance_0.5.ply": "19a76445bc50f5707f4cdb6fad7584cbc0a2dca4185cd8ccc6a6dcac4a9affd9"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 1 1 1 1 1 1",
+   "Accuracies: 1 1 1 1 1 1",
+   "F1-scores: 1 1 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "flat-plane-90k@1": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.02.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.05.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.1.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.2.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.5.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "cmp.tolerance_0.01.ply": "3c7f75e62784056448773049f411e45f6935caf8a50e236e36bae56b032fd366",
+   "cmp.tolerance_0.02.ply": "3c7f75e62784056448773049f411e45f6935caf8a50e236e36bae56b032fd366",
+   "cmp.tolerance_0.05.ply": "8a818b7b6f0779839a71a62884b51667f5ba596bb86e337c9a44ef4223ac25a5",
+   "cmp.tolerance_0.1.ply": "f7c9e68c6b71a5f7852643077afc21193badabf3ca403d302bed61f69938045c",
+   "cmp.tolerance_0.2.ply": "51f764889b5ad617d3a84619884a58c583551c40a7a662c012c17d24d0d00f89",
+   "cmp.tolerance_0.5.ply": "94afdef13184f4041ea66f46aa154170d2cead92a2980a50c72d5f782cb4c69f"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0 0 0.302985 0.879077 0.896698 0.938469",
+   "Accuracies: 0 0 0 0 0 0",
+   "F1-scores: 0 0 0 0 0 0"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "flat-plane-90k@12": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.02.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.05.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.1.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.2.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "acc.tolerance_0.5.ply": "dd1e6e6aa34bfcc15b7cff112f7e2b8035120642fcc1dfc3f051f41bab6cae32",
+   "cmp.tolerance_0.01.ply": "3c7f75e62784056448773049f411e45f6935caf8a50e236e36bae56b032fd366",
+   "cmp.tolerance_0.02.ply": "3c7f75e62784056448773049f411e45f6935caf8a50e236e36bae56b032fd366",
+   "cmp.tolerance_0.05.ply": "8a818b7b6f0779839a71a62884b51667f5ba596bb86e337c9a44ef4223ac25a5",
+   "cmp.tolerance_0.1.ply": "f7c9e68c6b71a5f7852643077afc21193badabf3ca403d302bed61f69938045c",
+   "cmp.tolerance_0.2.ply": "51f764889b5ad617d3a84619884a58c583551c40a7a662c012c17d24d0d00f89",
+   "cmp.tolerance_0.5.ply": "94afdef13184f4041ea66f46aa154170d2cead92a2980a50c72d5f782cb4c69f"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0 0 0.302985 0.879077 0.896698 0.938469",
+   "Accuracies: 0 0 0 0 0 0",
+   "F1-scores: 0 0 0 0 0 0"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "shell-80k@1": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "f87f5c315412a2684eee2262c127a01b2be23f734620bf3ba768ab4f07ef7b29",
+   "acc.tolerance_0.02.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.05.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.1.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.2.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.5.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "cmp.tolerance_0.01.ply": "7c572fe23ad808ccd9ec24b0c12a4fce201033b1e94534cd174f5c1a6526aad4",
+   "cmp.tolerance_0.02.ply": "adb6b7bf185a3d010a3eed359fe918f4236c8b9a5be591867689b3842124c588",
+   "cmp.tolerance_0.05.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.1.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.2.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.5.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0.911118 0.999987 1 1 1 1",
+   "Accuracies: 0.992046 1 1 1 1 1",
+   "F1-scores: 0.949861 0.999994 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "shell-80k@12": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "f87f5c315412a2684eee2262c127a01b2be23f734620bf3ba768ab4f07ef7b29",
+   "acc.tolerance_0.02.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.05.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.1.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.2.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "acc.tolerance_0.5.ply": "bedfca1e07386e1fcc422f2548dc31edc1fe599931d9f546379aa1b552d8be82",
+   "cmp.tolerance_0.01.ply": "7c572fe23ad808ccd9ec24b0c12a4fce201033b1e94534cd174f5c1a6526aad4",
+   "cmp.tolerance_0.02.ply": "adb6b7bf185a3d010a3eed359fe918f4236c8b9a5be591867689b3842124c588",
+   "cmp.tolerance_0.05.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.1.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.2.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d",
+   "cmp.tolerance_0.5.ply": "2251774226d85a0a77522df96c1570098f6769afe38ac9910b77786be1e43e2d"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0.911118 0.999987 1 1 1 1",
+   "Accuracies: 0.992046 1 1 1 1 1",
+   "F1-scores: 0.949861 0.999994 1 1 1 1"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "split-clusters-100k@1": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "e8bcd3eae8be8ba8a10d6ec89f677afc85d010f99bb80797c95f6a960b15cfd1",
+   "acc.tolerance_0.02.ply": "009696b96385dd58cf430be8d8db157f9eeb662d5b8c46093c12d7dd72eeb905",
+   "acc.tolerance_0.05.ply": "d0d9412b0f1cdf84a0f72f65b9e1e3ae1a279b8d2ae319edd8b48cb4b484e313",
+   "acc.tolerance_0.1.ply": "6b9608bfdb30f70e9308c3c96ea0ef9ac3c1c8f4fa10987c7d6599f435dd8c12",
+   "acc.tolerance_0.2.ply": "cab3b96268fa36b329bf5b9bbb0b90f1e4b334f39631d5caf4d3e78aa3366f66",
+   "acc.tolerance_0.5.ply": "9e59667bf41915763f34e8beafc7989fa53867636758a2972a333cbf3bbff71f",
+   "cmp.tolerance_0.01.ply": "0b143932f9d0078c35b66c6d6e8023548df4bc60ebc128840defaf48d5d71cda",
+   "cmp.tolerance_0.02.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.05.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.1.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.2.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.5.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0.912126 1 1 1 1 1",
+   "Accuracies: 0.841892 0.920435 0.926687 0.937515 0.957253 0.99252",
+   "F1-scores: 0.875603 0.95857 0.961949 0.96775 0.978159 0.996246"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ },
+ "split-clusters-100k@12": {
+  "clouds": {
+   "acc.tolerance_0.01.ply": "e8bcd3eae8be8ba8a10d6ec89f677afc85d010f99bb80797c95f6a960b15cfd1",
+   "acc.tolerance_0.02.ply": "009696b96385dd58cf430be8d8db157f9eeb662d5b8c46093c12d7dd72eeb905",
+   "acc.tolerance_0.05.ply": "d0d9412b0f1cdf84a0f72f65b9e1e3ae1a279b8d2ae319edd8b48cb4b484e313",
+   "acc.tolerance_0.1.ply": "6b9608bfdb30f70e9308c3c96ea0ef9ac3c1c8f4fa10987c7d6599f435dd8c12",
+   "acc.tolerance_0.2.ply": "cab3b96268fa36b329bf5b9bbb0b90f1e4b334f39631d5caf4d3e78aa3366f66",
+   "acc.tolerance_0.5.ply": "9e59667bf41915763f34e8beafc7989fa53867636758a2972a333cbf3bbff71f",
+   "cmp.tolerance_0.01.ply": "0b143932f9d0078c35b66c6d6e8023548df4bc60ebc128840defaf48d5d71cda",
+   "cmp.tolerance_0.02.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.05.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.1.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.2.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9",
+   "cmp.tolerance_0.5.ply": "6121d980f795af7971ef130d358b4f12527c536e5b379da0dd6c0cbced0c75a9"
+  },
+  "result_lines": [
+   "Tolerances: 0.01 0.02 0.05 0.1 0.2 0.5",
+   "Completenesses: 0.912126 1 1 1 1 1",
+   "Accuracies: 0.841892 0.920435 0.926687 0.937515 0.957253 0.99252",
+   "F1-scores: 0.875603 0.95857 0.961949 0.96775 0.978159 0.996246"
+  ],
+  "returncode": 0,
+  "stderr_first": ""
+ }
+}

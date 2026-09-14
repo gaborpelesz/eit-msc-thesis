@@ -5,12 +5,15 @@ variant's output is byte-identical to the reference, and refuses to report a
 timing it does not trust.
 
 ```
-bin/mvebench.py        the harness (golden / gate / bench)
-bin/gen_dataset.py     synthetic ETH3D-shaped dataset generator
-bin/build_and_gate.sh  identical build + correctness gate for every variant
-data/<preset>/         generated datasets (+ manifest.json with SHA-256 of every file)
-golden/<preset>.json   reference fingerprints produced from bench/baseline
-results/               JSON reports
+bin/mvebench.py           the harness (golden / gate / bench)
+bin/gen_dataset.py        synthetic ETH3D-shaped dataset generator
+bin/build_and_gate.sh     identical build + correctness gate for every variant
+bin/edge_gate.py          differential gate over the adversarial datasets
+bin/gen_edge_datasets.py  10 small adversarial datasets (degenerate / boundary)
+bin/gen_edge2_datasets.py 5 large adversarial geometries (70k-120k points)
+data/<preset>/            generated datasets (+ manifest.json with SHA-256 of every file)
+golden/<preset>.json      reference fingerprints produced from bench/baseline
+results/                  JSON reports
 ```
 
 ## Why a bespoke harness
@@ -79,6 +82,66 @@ Those are the two arms of the gate, each observed firing independently.
 printed 6-significant-digit output, because that is what the benchmark pipeline
 consumes. A change that alters the cell-average summation below ~1e-6 relative
 would pass the scalar arm. The per-point arm has no such tolerance — it is exact.
+
+## The adversarial gates
+
+The byte-exactness gate above measures well-formed data. It says nothing about
+what a variant does with an empty cloud, a NaN, or a point sitting exactly on a
+tolerance boundary -- and a round-2 variant that replaces the nearest-neighbour
+index can diverge on exactly that geometry while staying exact on `bench`.
+`edge_gate.py` closes that hole. For each case directory it runs the binary at
+1 and 12 threads with that case's own tolerance list and records the exit code,
+the four result lines, the first stderr line, and SHA-256 of every cloud the
+run emits; the golden is captured from `bench/baseline` and compared field by
+field. Only the four result lines are kept from stdout, because the progress
+lines carry per-variant absolute paths.
+
+The child environment is scrubbed of every `OMP_*` / `KMP_*` variable the
+calling shell might carry and rebuilt explicitly, so the thread count under test
+is the thread count that runs.
+
+`gen_edge_datasets.py` -- 10 small cases:
+
+| case | what it probes |
+|---|---|
+| `empty-recon`, `empty-scan` | zero-point clouds on either side |
+| `single-recon-point` | a cloud too small for any partitioning |
+| `single-tolerance` | the `tolerances.size() - 1` loop bounds |
+| `non-finite` | NaN and +/-Inf coordinates |
+| `far-from-origin` | coordinates ~1e5 m out, where voxel cell ids overflow naively |
+| `tolerance-boundary` | points placed exactly on a tolerance |
+| `coincident` | many points at one location |
+| `tolerance-dupes` | unsorted and duplicated tolerance lists |
+| `beam-boundary` | points straddling the laser-beam radius at 5 m |
+
+`beam-boundary` was added after the first nine failed to discriminate the
+negative control: none of them was sensitive to the beam model, so all nine
+passed on a branch known to be wrong. A gate that a known-bad build passes is
+not a gate.
+
+`gen_edge2_datasets.py` -- 5 large cases (`shell-80k`, `split-clusters-100k`,
+`flat-plane-90k`, `collinear-70k`, `density-extreme-120k`). These exist because
+every case above is <= 800 points, which is below the 32768-point threshold at
+which the partitioned index path partitions at all: the small gate runs the
+unchanged fallback in all ten cases and proves nothing about that code. The
+large cases are the degenerate *distributions* -- hollow, clustered, planar,
+collinear, 1000:1 density ratio -- that break spatial indices while `bench`
+stays green.
+
+Both gates are demonstrated to fail on `qa/negative-control`: 12 mismatches on
+the small set, 44 on the large set.
+
+```sh
+python3 bin/gen_edge_datasets.py  data/edge
+python3 bin/gen_edge2_datasets.py data/edge2
+python3 bin/edge_gate.py --binary <baseline-bin> --edge-root data/edge \
+        --workdir /tmp/e --write-golden golden/edge.json
+python3 bin/edge_gate.py --binary <variant-bin> --edge-root data/edge \
+        --workdir /tmp/e --golden golden/edge.json
+```
+
+Both generators are seeded (`20260914`, `20260915`), so `data/edge` and
+`data/edge2` reproduce bit-for-bit and are not tracked.
 
 ## The dataset
 
