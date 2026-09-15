@@ -131,6 +131,12 @@ def main():
         keep = np.zeros(G.shape[0], bool)
         keep[first] = True
         print(f"\none point per 1 cm voxel: {keep.sum():,} of {G.shape[0]:,}")
+        # Coverage under thinning is the quantity that can disagree in SIGN with
+        # the raw fraction above: raw counts weight a surface by how densely the
+        # scanner happened to hit it, and one cell per centimetre is what the
+        # ETH3D evaluator's completeness actually averages over.
+        for k, m in miss.items():
+            print(f"  {k:<16} reached {1 - m[keep].mean():.4f}")
         for k, m in miss.items():
             if k == ref_name:
                 continue
