@@ -246,9 +246,22 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # patch is no longer applied; it is kept in the tree because the pre-fork
 # submodule SHAs still need it.
 #
-# MVE_PCL_IO_FALLBACK=OFF is the configuration the speedup is claimed and
-# verified for: the lean reader handles the ETH3D scans directly, and linking
-# PCL's io pulls in VTK, whose cmake exports an unresolvable MPI target here.
+# MVE_PCL_IO_FALLBACK=ON. fast_ply is still tried first and still handles every
+# binary little-endian float32 cloud directly, which is nine of the ten methods
+# that emit one; PCL's general reader is reached only for what it declines. The
+# tenth is CUMVS, which writes ASCII PLY through VTK's writer (F-074) and was
+# unscoreable while this was OFF -- that is how its four outdoor runs failed.
+#
+# The earlier OFF setting conflated two independent things, and this comment
+# used to repeat the conflation: the ~60 ms of VTK loading that fec59c4 measured
+# away, and a cmake failure that made ON impossible to select here at all. The
+# second is fixed in the fork (c703dfb); the first is real but is startup cost
+# on a program whose evaluation takes ~15 s, it is not part of any method's
+# measured time, and it buys back a method.
+#
+# Equivalence is measured, not assumed: the ON build reproduces all fifteen
+# printed cells of the upstream evaluator's recorded CUMVS scores, and matches
+# the OFF build cell for cell on a binary cloud.
 # MVE_LTO=OFF is explicit because this image cannot do ThinLTO: it carries no
 # llvm-ar/llvm-ranlib, so CMake's IPO probe fails and silently skips it. Left at
 # its ON default the build requests an optimisation it does not get, which is
@@ -257,12 +270,21 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # -- but it means this layer is valid only on the ISA it was compiled on, the
 # fork's CMakeLists documenting that this program is not invariant to FMA
 # contraction. The campaign's hardware fingerprint already pins that.
+# Not for MPI itself, and deliberately not in the base stage: Ubuntu's VTK 9.1
+# names MPI::MPI_C in VTK::mpi's link interface and ships nothing that defines
+# it, so PCL's `io` component will not configure without MPI's cmake package
+# present. Only the evaluator below needs it, and putting it in `base` would
+# invalidate the Eigen, OpenCV and fourteen method layers on a change that
+# concerns none of them.
+RUN apt update && apt install -y --no-install-recommends mpi-default-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /multi-view-evaluation
 ADD eth3d/multi-view-evaluation /multi-view-evaluation
 RUN cmake -Bbuild -GNinja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang-18 \
       -DCMAKE_CXX_COMPILER=clang++-18 \
-      -DMVE_PCL_IO_FALLBACK=OFF \
+      -DMVE_PCL_IO_FALLBACK=ON \
       -DMVE_LTO=OFF \
     && cmake --build build \
     && cp build/ETH3DMultiViewEvaluation /usr/local/bin/ETH3DMultiViewEvaluation

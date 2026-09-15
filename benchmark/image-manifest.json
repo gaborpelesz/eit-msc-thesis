@@ -1,13 +1,13 @@
 {
   "dockerfile": {
     "path": "benchmark/Dockerfile",
-    "sha256": "e9d2385e4b272620dded00e657e477b477bf1fe67004c697771078f6350b9e26"
+    "sha256": "b055869ca0478df4d41b703d55a9f952a7083f1c46c5875e9d77f0b4f32f554b"
   },
   "evaluator": {
     "path": "benchmark/eth3d/multi-view-evaluation",
-    "sha": "e63cda48ad9c9090b833439caf518a4b51c85a06"
+    "sha": "c703dfba4ce3fd91ed740d55bc9b24be8030c4e0"
   },
-  "generated_at": "2026-09-14T22:31:26.853887+00:00",
+  "generated_at": "2026-09-15T05:32:29.399174+00:00",
   "methods": [
     {
       "converter": {

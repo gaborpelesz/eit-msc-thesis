@@ -235,7 +235,7 @@ global_deviations:
     description: >-
       ETH3D evaluator. Scoring runs against the gaborpelesz fork of
       ETH3D/multi-view-evaluation rather than upstream, built
-      CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=OFF, MVE_LTO=OFF and
+      CMAKE_BUILD_TYPE=Release with MVE_PCL_IO_FALLBACK=ON, MVE_LTO=OFF and
       the fork's MVE_NATIVE_ARCH default (ON). ThinLTO is off because the image
       carries no llvm-ar/llvm-ranlib, so CMake's IPO probe fails and skips it
       silently; the flag is set explicitly so the build stops requesting an
@@ -251,7 +251,19 @@ global_deviations:
       end to end; and inside the campaign image on delivery_area at 43.7M
       points, 129.05 s to 14.75 s with every printed digit unchanged. The
       quality of a measurement is therefore unaffected and only the cost of
-      taking it moves. MVE_NATIVE_ARCH=ON means the built layer is valid only
+      taking it moves. That six-cloud check omitted CUMVS, which is the one
+      method of the fourteen writing ASCII PLY (F-074) and so the one the lean
+      reader declines; MVE_PCL_IO_FALLBACK was OFF, and its four
+      outdoor-four-scene runs consequently failed to score. From c703dfb the
+      option is ON: fast_ply is still tried first and still serves the nine
+      binary-writing methods, and PCL's general reader is reached only for what
+      it declines. Two gates were run on this host and image before the switch
+      was accepted -- the ON build reproduces all fifteen printed cells of the
+      upstream evaluator's stored CUMVS delivery_area scores (f1@2cm 0.859716),
+      and matches the OFF build cell for cell on a binary cloud. The first of
+      those is also the MVE_NATIVE_ARCH re-gate that the fork's CMakeLists asks
+      for on any host whose baseline ISA lacks FMA, which had not been done on
+      x86-64 until now. MVE_NATIVE_ARCH=ON means the built layer is valid only
       on the ISA it was compiled on -- the fork's CMakeLists documents that this
       program is not invariant to FMA contraction -- which the campaign's
       hardware-fingerprint binding already enforces. No campaign predating the
