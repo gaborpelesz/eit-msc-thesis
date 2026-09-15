@@ -10,6 +10,16 @@ to its own errors. Patches are selected on the ground truth alone for the same
 reason -- selecting them on a reconstruction would pick that method's flat
 regions and flatter it.
 
+Thickness (MAD, RMS, p95) is sign-invariant, but the SIGNED mean is only a
+"bias" once every patch normal points the same way relative to the sensor: SVD
+returns a normal whose sign is arbitrary, so pooling residuals across patches
+without orienting them first averages a quantity whose sign flips per patch.
+Pass --orient-to with the scene's COLMAP calibration and each normal is turned
+to face the nearest camera centre, which makes a positive bias mean "in front of
+the true surface, toward the camera". Without it the tool still fixes the sign
+deterministically (largest component positive) so runs reproduce, and prints the
+bias column parenthesised to mark it as unidentified.
+
 See F-076.
 """
 import argparse
@@ -46,7 +56,22 @@ def fit_plane(P):
     return c, Vt[2], s
 
 
-def select_patches(gt, box, min_points, max_thickness, min_extent, limit):
+def orient(normal, centre, cameras):
+    """Turn a plane normal to face the sensor, or to a fixed sign without one."""
+    if cameras is None:
+        k = int(np.argmax(np.abs(normal)))
+        return normal if normal[k] >= 0 else -normal
+    cam = cameras[int(np.argmin(((cameras - centre) ** 2).sum(axis=1)))]
+    return normal if normal @ (cam - centre) >= 0 else -normal
+
+
+def camera_centres(cal):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from select_views import read_colmap
+    return read_colmap(cal)[1]
+
+
+def select_patches(gt, box, min_points, max_thickness, min_extent, limit, cameras):
     q = np.floor(gt.astype(np.float64) / box).astype(np.int64)
     q -= q.min(axis=0)
     key = (q[:, 0] << 42) | (q[:, 1] << 21) | q[:, 2]
@@ -65,7 +90,7 @@ def select_patches(gt, box, min_points, max_thickness, min_extent, limit):
         # The second singular value rejects cubes whose points are collinear or
         # clustered: a plane through those is unconstrained in one direction.
         if rms < max_thickness and s[1] / np.sqrt(Q.shape[0]) > min_extent:
-            patches.append((rms, c, normal))
+            patches.append((rms, c, orient(normal, c, cameras)))
     patches.sort(key=lambda t: t[0])
     return patches[:limit]
 
@@ -83,18 +108,25 @@ def main():
     ap.add_argument("--max-thickness", type=float, default=0.004)
     ap.add_argument("--min-extent", type=float, default=0.15)
     ap.add_argument("--patches", type=int, default=25)
+    ap.add_argument("--orient-to", metavar="COLMAP_DIR",
+                    help="scene calibration directory; orients each plane normal "
+                         "toward the nearest camera centre so the bias column is "
+                         "signed relative to the sensor")
     args = ap.parse_args()
 
+    cameras = camera_centres(args.orient_to) if args.orient_to else None
     gt = load_xyz(args.ground_truth)
     patches = select_patches(gt, args.box, args.min_gt_points,
-                             args.max_thickness, args.min_extent, args.patches)
+                             args.max_thickness, args.min_extent, args.patches,
+                             cameras)
     if not patches:
         raise SystemExit("no planar patches met the criteria; loosen --max-thickness")
     print(f"GT points {gt.shape[0]:,}; {len(patches)} planar patches "
           f"(GT RMS thickness {np.mean([p[0] for p in patches]) * 1000:.2f} mm)\n")
     del gt
 
-    print(f"{'method':<11} {'patches':>7} {'points':>10} {'bias mm':>8} "
+    bias_col = "bias mm" if cameras is not None else "(bias)"
+    print(f"{'method':<11} {'patches':>7} {'points':>10} {bias_col:>8} "
           f"{'MAD mm':>7} {'RMS mm':>7} {'p95 mm':>7}")
     for f in sorted(glob.glob(args.clouds)):
         method = os.path.basename(f).split("__")[0]
@@ -102,7 +134,7 @@ def main():
         residuals, used = [], 0
         for _, c, normal in patches:
             d = P - c
-            in_box = (np.abs(d) < args.box).all(axis=1)
+            in_box = (np.abs(d) < args.box / 2).all(axis=1)
             if in_box.sum() < 200:
                 continue
             r = d[in_box] @ normal
