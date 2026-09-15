@@ -29,8 +29,13 @@ def cells_equal(a, b):
     two builds are claimed to be equivalent, so any visible difference is the
     thing worth knowing about. A tolerance present in one and not the other is
     a mismatch rather than a skipped comparison.
+
+    A run whose evaluation failed stores `quality: []`, not null, so emptiness
+    has to mean "nothing to compare against" here. Reading it as a set of zero
+    tolerances would report every newly scoreable run as a disagreement, which
+    is the opposite of what it is.
     """
-    if a is None or b is None:
+    if not a or not b:
         return None
     ka = {round(r["tolerance"], 6): r for r in a}
     kb = {round(r["tolerance"], 6): r for r in b}

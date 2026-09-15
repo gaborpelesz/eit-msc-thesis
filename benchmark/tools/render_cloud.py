@@ -1,9 +1,13 @@
-"""Splat a binary PLY into a shaded image from an ACMMP-format camera.
+"""Splat a PLY into a shaded image from an ACMMP-format camera.
 
-Geometry-only shading (screen-space normals + eye-dome lighting): the LeanMVS
-clouds carry no colour or normals, so any colour-based render would compare
-methods on different data. One point per sample, no splat radius, so holes in
-the reconstruction stay holes on screen.
+Colour is used when the file carries it and geometry-only shading
+(screen-space normals + eye-dome lighting) when it does not, so a cloud is
+never compared against another on different data. One point per sample plus a
+2x2 splat, so holes in the reconstruction stay holes on screen.
+
+Binary little-endian is memory-mapped. ASCII is parsed, because CUMVS writes
+it (F-074) and is otherwise unrenderable here -- leaving it out would put a
+gap in the one comparison these renders exist to make.
 """
 import sys, struct, numpy as np
 from PIL import Image
@@ -14,19 +18,61 @@ FMT = {'float': ('f4', 4), 'float32': ('f4', 4), 'double': ('f8', 8),
 
 
 def ply_layout(path):
+    """Offset, vertex count, per-property (name, numpy type) and the format.
+
+    Properties are collected only up to the second `element`: a trailing face
+    element declares its own properties (a list, which has no fixed width) and
+    folding those into the vertex layout would corrupt it.
+    """
     with open(path, 'rb') as f:
-        hdr, n, props = b'', 0, []
+        n, props, fmt, elements = 0, [], 'binary_little_endian', 0
         while True:
             line = f.readline()
-            hdr += line
-            t = line.decode('ascii', 'replace').strip().split()
-            if t and t[0] == 'element' and t[1] == 'vertex':
-                n = int(t[2])
-            elif t and t[0] == 'property':
-                props.append((t[1], t[2]))
-            elif t and t[0] == 'end_header':
+            if not line:
                 break
-        return f.tell(), n, [(nm, FMT[ty][0]) for ty, nm in props]
+            t = line.decode('ascii', 'replace').strip().split()
+            if not t:
+                continue
+            if t[0] == 'format':
+                fmt = t[1]
+            elif t[0] == 'element':
+                elements += 1
+                if t[1] == 'vertex':
+                    n = int(t[2])
+            elif t[0] == 'property' and elements == 1:
+                props.append((t[1], t[2]))
+            elif t[0] == 'end_header':
+                break
+        return f.tell(), n, [(nm, FMT[ty][0]) for ty, nm in props], fmt
+
+
+def read_ascii(path, off, n, ncols):
+    """Yield (rows, ncols) float32 blocks from an ASCII PLY body.
+
+    np.fromstring in text mode (sep given) is the fast path and is not the
+    deprecated binary overload. Blocks are cut at the last newline so a number
+    is never split across two reads, and parsing stops at the declared vertex
+    count so a trailing face element is not read as coordinates.
+    """
+    got = 0
+    with open(path, 'rb') as f:
+        f.seek(off)
+        tail = b''
+        while got < n:
+            block = f.read(64 << 20)
+            if not block:
+                break
+            block = tail + block
+            cut = block.rfind(b'\n')
+            if cut < 0:
+                tail = block
+                continue
+            tail = block[cut + 1:]
+            vals = np.fromstring(block[:cut].decode('ascii', 'replace'), sep=' ')
+            rows = min(vals.size // ncols, n - got)
+            if rows:
+                yield vals[:rows * ncols].reshape(rows, ncols).astype(np.float32)
+                got += rows
 
 
 def read_cam(path):
@@ -46,23 +92,32 @@ def render(ply, cam, out, width=1400, ss=2, src_width=3200, chunk=4_000_000, col
     W = width * ss
     H = int(round(2 * cy)) if cy > 0 else W * 2 // 3
     H = max(H, 8)
-    off, n, dt = ply_layout(ply)
-    arr = np.memmap(ply, dtype=np.dtype(dt), mode='r', offset=off, shape=(n,))
+    off, n, dt, fmt = ply_layout(ply)
+    names = [nm for nm, _ in dt]
+    ci = {nm: i for i, nm in enumerate(names)}
+    has_rgb = colour and {'red', 'green', 'blue'} <= set(names)
 
-    names = {n for n, _ in dt}
-    has_rgb = colour and {'red', 'green', 'blue'} <= names
+    if fmt == 'ascii':
+        def blocks():
+            for blk in read_ascii(ply, off, n, len(names)):
+                yield (blk[:, [ci['x'], ci['y'], ci['z']]].copy(),
+                       blk[:, [ci['red'], ci['green'], ci['blue']]] / 255.0 if has_rgb else None)
+    else:
+        arr = np.memmap(ply, dtype=np.dtype(dt), mode='r', offset=off, shape=(n,))
+
+        def blocks():
+            for a in range(0, n, chunk):
+                blk = arr[a:min(a + chunk, n)]
+                yield (np.stack([blk['x'], blk['y'], blk['z']], axis=1).astype(np.float32),
+                       np.stack([blk['red'], blk['green'], blk['blue']],
+                                axis=1).astype(np.float32) / 255.0 if has_rgb else None)
 
     zbuf = np.full(W * H, np.inf, dtype=np.float32)
     pbuf = np.zeros((W * H, 3), dtype=np.float32)
     cbuf = np.zeros((W * H, 3), dtype=np.float32) if has_rgb else None
     Rf, tf = R.astype(np.float32), t.astype(np.float32)
 
-    for a in range(0, n, chunk):
-        b = min(a + chunk, n)
-        blk = arr[a:b]
-        P = np.stack([blk['x'], blk['y'], blk['z']], axis=1).astype(np.float32)
-        C = (np.stack([blk['red'], blk['green'], blk['blue']], axis=1).astype(np.float32) / 255.0
-             if has_rgb else None)
+    for P, C in blocks():
         P = P @ Rf.T + tf
         z = P[:, 2]
         ok = z > 1e-3
