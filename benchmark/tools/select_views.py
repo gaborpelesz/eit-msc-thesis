@@ -17,6 +17,12 @@ difference of rule but of what happens after the rule says no.
 This exists so that difference can be applied to any method the harness drives,
 on any scene, without running CUMVS -- and so the `cumvs` mode can be validated
 against CUMVS's own `view_id_sets.json` rather than assumed faithful.
+
+That validation is joined by image NAME, never by index. The two pipelines
+number images in different orders, and on the ETH3D scenes measured here those
+orders are reversed (see `read_colmap`), so an index-to-index comparison is a
+comparison of two different images that happens to typecheck. Every consumer of
+this module's output is responsible for the same join.
 """
 import argparse
 import numpy as np
@@ -26,9 +32,12 @@ from pathlib import Path
 def read_colmap(cal):
     """Camera centres and per-image sparse track ids, in COLMAP image-id order.
 
-    Both pipelines order images this way -- the converter sorts on image id
-    explicitly, CUMVS takes images.txt in file order -- so an index here means
-    the same image in both.
+    This is the converter's order (`colmap2mvsnet_acm_perf.py:402` sorts on
+    image id). CUMVS does NOT share it: it indexes by the order images appear in
+    `images.txt` (`app_initialize_ETH3D.cpp:20`), and ETH3D writes that file in
+    DESCENDING image id, so on playground and courtyard CUMVS index k is this
+    module's index (n - 1 - k). An index is therefore meaningless across the two
+    pipelines; join on the image name, which `names` carries for that purpose.
     """
     lines = (Path(cal) / "images.txt").read_text().splitlines()
     ids, names, centres, tracks = [], [], [], []
