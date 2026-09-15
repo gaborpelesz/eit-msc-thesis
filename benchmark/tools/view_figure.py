@@ -33,6 +33,8 @@ def main():
     ap.add_argument("--cols", type=int, default=3)
     ap.add_argument("--width", type=int, default=760, help="per-panel width")
     ap.add_argument("--title", default="")
+    ap.add_argument("--no-legend", action="store_true",
+                    help="for panels that are cloud renders, not classification maps")
     ap.add_argument("-o", "--out", required=True)
     a = ap.parse_args()
 
@@ -47,7 +49,7 @@ def main():
     cols = min(a.cols, len(ims))
     rows = (len(ims) + cols - 1) // cols
     pad, bar, top = 12, 30, 46 if a.title else 10
-    legend_h = 34
+    legend_h = 0 if a.no_legend else 34
     W = cols * pw + (cols + 1) * pad
     H = top + rows * (ph + bar) + (rows + 1) * pad + legend_h
 
@@ -63,13 +65,14 @@ def main():
         d.text((x + 2, y), label, fill=FG, font=font(15))
         out.paste(im, (x, y + bar))
 
-    y = H - legend_h + 8
-    x = pad
-    f = font(14)
-    for name, col in LEGEND:
-        d.rectangle([x, y, x + 14, y + 14], fill=col)
-        d.text((x + 20, y - 1), name, fill=FG, font=f)
-        x += 20 + int(d.textlength(name, font=f)) + 22
+    if not a.no_legend:
+        y = H - legend_h + 8
+        x = pad
+        f = font(14)
+        for name, col in LEGEND:
+            d.rectangle([x, y, x + 14, y + 14], fill=col)
+            d.text((x + 20, y - 1), name, fill=FG, font=f)
+            x += 20 + int(d.textlength(name, font=f)) + 22
     out.save(a.out, quality=92)
     print(f"{a.out}  {W}x{H}  {len(ims)} panels")
 
