@@ -1,0 +1,117 @@
+# The campaign of D18 -- the thesis measurement every RQ1/RQ2 number on the
+# uniform-size scenes comes from. campaign-02 covers the six mixed-size ETH3D
+# training scenes (D32); together they are all thirteen.
+#
+# Ten methods x seven scenes (D20, D32) x {1600, 3200} (D11) x {author, norm10}
+# (D18) x two repeats (D31) = 560 runs, on one card of one machine, from one
+# image.
+#
+# Frozen by construction. `store.init_campaign` compares this file byte for byte
+# against the copy in the campaign directory and refuses a run when they differ,
+# and R-ENV-06 refuses a different GPU model, driver, CUDA version or image
+# digest. So the methods list, the scenes, the repeat count and the image are
+# settled here and nowhere else: a change to any of them is a new campaign, not
+# an edit. In particular **the image may not be rebuilt while this campaign is
+# open** -- activating APDe-MVS, bumping a fork, or touching
+# benchmark/pyproject.toml all change the build manifest and would end it. The
+# gate compares the image against the *working tree*, quorum-mvs included, so
+# Quorum MVS work during the campaign happens in a separate clone.
+#
+# Methods: the ten forks the Dockerfile builds and `methods.yaml` marks
+# measurable. APDe-MVS is `status: pending` (not instrumented, `bench run`
+# refuses to name it); TSAR-MVS and DVP-MVS are `status: excluded` (D19-b, D30).
+# Quorum MVS is deliberately **out**: it is the `own` method and Phase 3 will
+# keep changing it, so including it would weld this campaign to a moving
+# target. It is measured against these results through its own campaign on
+# this machine and this image.
+#
+# Repeats: two (D31, author, 2026-09-29) -- scene breadth was preferred over a
+# third repeat. With N = 2 a per-cell t interval is uninformative; dispersion
+# is reported pooled per method, as D31 says.
+#
+# Platform (D26, author, 2026-09-29): one RTX 5070 12 GB, card 0 of gabor-dev0
+# (driver 595.91.07 / CUDA 13.2); card 1 stays idle so no run shares host I/O
+# with another. A 12 GB 5070 stands for the GPU a production reconstruction
+# system runs on. HPM-MVS++ at 3200 x `author` needed more than 10.6 GB on the
+# 11 GB card of Pilot A (F-025) and is expected to fail here too; that failure
+# is a result and is recorded as one (R-FAIL-01), not a reason to leave the
+# cell out. The host runs headless for the duration: the R-ENV-02 display check
+# reads `display_active`, which this driver reports `Disabled` even with a
+# Wayland session live on the card, so the desktop is stopped instead
+# (tools/host_prep.sh headless). Both cards report the same `gpu_model`, so the
+# declared `fingerprint:` cannot tell card 0 from card 1 -- `gpu_index: 0` and
+# the recorded `gpu_uuid` are what pin that.
+#
+# Clocks are locked per D25 at 2700 MHz, stock 250 W power limit
+# (`sudo tools/host_prep.sh gpu 2700`). Measured rather than guessed: unlocked,
+# card 0 sustained >= 2850 MHz at p05 under CUMVS, APD-MVS and DPE-MVS at 3200
+# with no throttle reason (F-026 addendum, 2026-09-29), and the lock sits
+# ~150 MHz below that for heat soak. It is recorded in every run's `clock_hold`.
+
+version: 1
+campaign: campaign-01
+image: mvs-bench:sm120
+
+methods:
+  - ACMH
+  - ACMM
+  - ACMP
+  - ACMMP
+  - APD-MVS
+  - HPM-MVS
+  - HPM-MVS_plusplus
+  - MP-MVS
+  - DPE-MVS
+  - CUMVS
+scenes: [delivery_area, kicker, meadow, office, pipes, relief, relief_2]
+
+# R-EXP-09/D20/D32: these are the seven single-camera, uniform-image-size
+# scenes of the thirteen (F-021), which is why no padding is applied under the
+# shared converter. All seven are prepared by eth3d/prepare_scene.py from the
+# 2026-09-29 download (HAMMING resampling, JPEG q100 4:4:4).
+# The assertion only lets the campaign be planned before the dataset is on
+# disk; once it is, `expand()` measures the images themselves and would refuse
+# a scene whose sizes differ regardless of what is asserted here.
+scenes_have_equal_image_sizes: true
+padding: none
+widths: [1600, 3200]
+configurations: [author, norm10]
+repeats: 2
+
+# The campaign settings, written out rather than left to the defaults they
+# happen to match: the phase timer on (R-TIM-09 instrumented arm) and the debug
+# artefacts off (R-EXP-11 in force). `method_env` stays empty — MVS_BENCH_SYNC
+# is read by every fork's vendored bench_timer.h, not only by CUMVS, so the
+# D25 addendum for CUMVS cannot be served by a campaign-wide variable; it is
+# `method_env_by_method` instead, disclosed as a CUMVS harness deviation in
+# methods.yaml (author, 2026-09-29).
+phase_timer: true
+debug_output: "off"
+method_env: {}
+method_env_by_method:
+  CUMVS:
+    MVS_BENCH_SYNC: "1"
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+# c703dfb is the MVE_PCL_IO_FALLBACK=ON build, which is what makes CUMVS's
+# ASCII clouds scoreable at all (F-074).
+evaluator_sha: c703dfba4ce3fd91ed740d55bc9b24be8030c4e0
+
+# R-EXP-03: refuse the wrong machine before the first container starts, rather
+# than binding to whichever host runs first.
+fingerprint:
+  gpu_model: "NVIDIA GeForce RTX 5070"
+  driver_version: "595.91.07"
+  cuda_version: "13.2"
+
+# All benchmark data lives under the repository's git-ignored `.data/`.
+paths:
+  dataset_root: /home/gabor/thesis/.data/eth3d
+  results_root: /home/gabor/thesis/.data/bench/results
+  work_root: /home/gabor/thesis/.data/bench/work
+  artifacts_root: /home/gabor/thesis/.data/bench/clouds
