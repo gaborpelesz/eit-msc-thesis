@@ -282,7 +282,7 @@ def build_record(spec, manifest, entry, run, result, fingerprint, deviations, re
     """
     from . import runner as rn
 
-    measured_env = rn.method_env(spec)
+    measured_env = rn.method_env(spec, run.method)
     telemetry = result.get("telemetry") or {}
     quality = result.get("quality")
     primary = None

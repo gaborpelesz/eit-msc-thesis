@@ -278,19 +278,25 @@ def docker_run_argv(spec, run, argv, work_dir, detach, name=None, docker="docker
     return command
 
 
-def method_env(spec):
+def method_env(spec, method=None):
     """Environment of the measured process.
 
     The phase timer is gated by `MVS_BENCH_PHASES`; a specification with
     `phase_timer: false` leaves it unset, which is the uninstrumented half of
     the overhead pair R-TIM-09 asks for. `method_env` carries anything else a
-    campaign needs to set, `MVS_BENCH_SYNC` for CUMVS above all (R-TIM-08).
+    campaign needs to set for every method, and `method_env_by_method` what it
+    sets for one method only -- `MVS_BENCH_SYNC` for CUMVS above all
+    (R-TIM-08), which every fork's vendored bench_timer.h reads, so it cannot
+    go in `method_env` without syncing the other nine as well.
     """
     env = {}
     if spec.phase_timer:
         env["MVS_BENCH_PHASES"] = "1"
         env["MVS_BENCH_FILE"] = f"{spec.container['out']}/phases.txt"
     env.update({str(k): str(v) for k, v in spec.method_env.items()})
+    if method is not None:
+        overrides = spec.method_env_by_method.get(method) or {}
+        env.update({str(k): str(v) for k, v in overrides.items()})
     return env
 
 
@@ -299,7 +305,7 @@ def plan_commands(spec, entry, run, docker="docker"):
     work_dir = spec.work_dir(run)
     method_argv = resolve_invocation(spec, entry, run)
     convert_argv = preprocess_argv(spec, entry, run)
-    env = method_env(spec)
+    env = method_env(spec, run.method)
     return {
         "work_dir": str(work_dir),
         "preprocess": {
@@ -529,7 +535,7 @@ def execute(
     }
 
     # The measured process, in a fresh container (R-RUN-05).
-    env = method_env(spec)
+    env = method_env(spec, run.method)
     method_argv = resolve_invocation(spec, entry, run)
     cname = f"bench_{run.key}"
     subprocess.run([docker, "rm", "-f", cname], capture_output=True, text=True)

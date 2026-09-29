@@ -277,3 +277,58 @@ def test_missing_phase_trace_is_not_a_failure(tmp_path):
     assert trace.errors and "no phase trace was written" in trace.errors[0]
     status, _ = rn.classify(0, False, "", False, {})
     assert status == "ok"
+
+
+def test_method_env_by_method_reaches_only_the_named_method(write_spec, spec_dict, manifest):
+    spec = _spec(
+        write_spec,
+        dict(spec_dict),
+        manifest,
+        methods=["ACMM", "CUMVS"],
+        method_env_by_method={"CUMVS": {"MVS_BENCH_SYNC": 1}},
+    )
+    assert rn.method_env(spec, "CUMVS")["MVS_BENCH_SYNC"] == "1"
+    assert "MVS_BENCH_SYNC" not in rn.method_env(spec, "ACMM")
+    for run in sp.expand(spec):
+        env = rn.plan_commands(spec, sp.method_entry(manifest, run.method), run)["measured"]["env"]
+        assert ("MVS_BENCH_SYNC" in env) == (run.method == "CUMVS")
+
+
+def test_method_env_by_method_refuses_a_method_the_spec_does_not_run(
+    write_spec, spec_dict, manifest
+):
+    with pytest.raises(sp.SpecError, match="method_env_by_method"):
+        _spec(
+            write_spec,
+            dict(spec_dict),
+            manifest,
+            methods=["ACMM"],
+            method_env_by_method={"CUMVS": {"MVS_BENCH_SYNC": 1}},
+        )
+
+
+def test_visualization_argv_asks_for_one_tolerance_and_both_coloured_clouds(
+    write_spec, spec_dict, manifest, tmp_path
+):
+    from bench import evaluate as ev
+
+    spec = _spec(write_spec, dict(spec_dict), manifest, methods=["ACMM"])
+    run = sp.expand(spec)[0]
+    argv = ev.visualization_argv(
+        spec, spec.artifact_path(run), run.scene, run.width, tmp_path / "viz", 0.02
+    )
+    assert argv[argv.index("--tolerances") + 1] == "0.02"
+    assert argv[argv.index("--accuracy_cloud_output_path") + 1] == "/viz/accuracy"
+    assert argv[argv.index("--completeness_cloud_output_path") + 1] == "/viz/completeness"
+    assert f"{(tmp_path / 'viz').absolute()}:/viz" in argv
+    assert f"{spec.scene_dir(run.scene, run.width)}:/gt:ro" in argv
+
+
+def test_run_key_round_trips_through_the_visualize_parser(write_spec, spec_dict, manifest):
+    from bench import cli
+
+    spec = _spec(write_spec, dict(spec_dict), manifest, methods=["ACMM"])
+    for run in sp.expand(spec):
+        assert cli._run_from_key(run.key) == run
+    with pytest.raises(sp.SpecError):
+        cli._run_from_key("ACMM__kicker__3200__author__r1")

@@ -9,11 +9,13 @@
     bench variance <campaign_dir>...
     bench pair   --a <campaign_dir> --b <campaign_dir> [--a-repeats 1,2,3] [--shares]
     bench phases <run_dir>
+    bench visualize <spec.yaml> <run key>... [--tolerance T]
 """
 
 import argparse
 import json
 import signal
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -246,6 +248,54 @@ def cmd_phases(args):
     for error in trace.errors[:20] + harness.errors[:20]:
         print(f"  ! {error}", file=sys.stderr)
     return 0
+
+
+def _run_from_key(key):
+    parts = key.split("__")
+    if len(parts) != 5 or not parts[2].startswith("w") or not parts[4].startswith("r"):
+        raise sp.SpecError(f"not a run key: {key!r} (expected method__scene__wW__config__rN)")
+    method, scene, width, configuration, repeat = parts
+    return sp.Run(method, scene, int(width[1:]), configuration, int(repeat[1:]))
+
+
+def cmd_visualize(args):
+    """Coloured accuracy/completeness clouds for archived runs, on demand.
+
+    Derived artefacts, regenerable from the archived cloud at any time, so they
+    live next to the clouds rather than in the result store and cost the
+    campaign nothing. An existing output directory is never overwritten.
+    """
+    spec, _ = _load(args.spec, args.manifest)
+    tolerance = args.tolerance if args.tolerance is not None else spec.primary_tolerance
+    status = 0
+    for key in args.keys:
+        run = _run_from_key(key)
+        cloud = Path(spec.artifact_path(run))
+        out_dir = cloud.parent / "visualizations" / f"{key}__t{tolerance}"
+        if not cloud.exists():
+            print(f"{key}: no archived cloud at {cloud}", file=sys.stderr)
+            status = 2
+            continue
+        if out_dir.exists():
+            print(f"{key}: {out_dir} exists; leaving it as it is", file=sys.stderr)
+            continue
+        out_dir.mkdir(parents=True)
+        argv = ev.visualization_argv(
+            spec, cloud, run.scene, run.width, out_dir, tolerance, docker=args.docker
+        )
+        proc = subprocess.run(argv, capture_output=True, text=True)
+        (out_dir / "evaluator.stdout.log").write_text(proc.stdout)
+        (out_dir / "evaluator.stderr.log").write_text(proc.stderr)
+        written = sorted(p.name for p in out_dir.glob("*.ply"))
+        if proc.returncode != 0 or len(written) != 2:
+            print(f"{key}: evaluator exited {proc.returncode}, wrote {written}; "
+                  f"logs in {out_dir}", file=sys.stderr)
+            status = 2
+            continue
+        print(f"{key}: {out_dir}")
+        for name in written:
+            print(f"  {name}")
+    return status
 
 
 _STOP = {"requested": False}
@@ -538,6 +588,18 @@ def main(argv=None):
     phases.add_argument("run_dir")
     phases.add_argument("--depth", type=int, default=None)
     phases.set_defaults(func=cmd_phases)
+
+    visualize = subparsers.add_parser(
+        "visualize", help="coloured accuracy/completeness clouds for archived runs"
+    )
+    visualize.add_argument("spec")
+    visualize.add_argument("keys", nargs="+", metavar="KEY", help="run key(s)")
+    visualize.add_argument(
+        "--tolerance", type=float, default=None, help="metres (default: primary_tolerance)"
+    )
+    visualize.add_argument("--docker", default="docker")
+    _add_manifest(visualize)
+    visualize.set_defaults(func=cmd_visualize)
 
     args = parser.parse_args(argv)
     try:

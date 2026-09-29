@@ -96,6 +96,7 @@ class Spec:
     converter_args: dict
     initializer_args: dict
     method_env: dict
+    method_env_by_method: dict
     phase_timer: bool
     debug_output: str
     padding: str
@@ -245,6 +246,10 @@ def load(path, manifest=None):
         converter_args=converter_args,
         initializer_args=initializer_args,
         method_env=dict(data.get("method_env") or {}),
+        method_env_by_method={
+            str(name): dict(env or {})
+            for name, env in (data.get("method_env_by_method") or {}).items()
+        },
         phase_timer=bool(data.get("phase_timer", True)),
         debug_output=debug_output,
         padding=padding,
@@ -279,6 +284,7 @@ def load(path, manifest=None):
                 "converter_args",
                 "initializer_args",
                 "method_env",
+                "method_env_by_method",
                 "phase_timer",
                 "debug_output",
                 "padding",
@@ -295,6 +301,12 @@ def load(path, manifest=None):
         raise SpecError(f"{path}: `repeats` must be at least 1 (R-STA-03)")
     if spec.shard_count < 1 or not (0 <= spec.shard_index < spec.shard_count):
         raise SpecError(f"{path}: `shard` must satisfy 0 <= index < count")
+    stray = sorted(set(spec.method_env_by_method) - set(spec.methods))
+    if stray:
+        raise SpecError(
+            f"{path}: `method_env_by_method` names method(s) not in `methods`: "
+            f"{', '.join(stray)}"
+        )
     if spec.primary_tolerance not in spec.tolerances:
         raise SpecError(
             f"{path}: `primary_tolerance` {spec.primary_tolerance} is not in `tolerances`"

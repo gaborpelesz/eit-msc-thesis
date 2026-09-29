@@ -123,6 +123,50 @@ def evaluation_argv(spec, ply_path, scene, width, docker="docker"):
     ]
 
 
+def visualization_argv(spec, ply_path, scene, width, out_dir, tolerance, docker="docker"):
+    """`docker run` argv for the evaluator's coloured clouds at one tolerance.
+
+    Not part of a run: the scores come from `evaluation_argv`, and this is
+    re-run on demand from the archived cloud (`bench visualize`). The
+    evaluator writes `accuracy.tolerance_<t>.ply` (the reconstruction, green
+    accurate / red inaccurate / blue unobserved by the scan) and
+    `completeness.tolerance_<t>.ply` (the laser scan, green covered / red
+    missed) into `out_dir`, one pair per tolerance it is given -- hence one.
+    """
+    import os
+
+    ply_path = Path(ply_path).absolute()
+    out_dir = Path(out_dir).absolute()
+    scene_dir = spec.scene_dir(scene, width)
+    relative_mlp = spec.layout["ground_truth_mlp"].format(scene=scene, width=width)
+    return [
+        docker,
+        "run",
+        "--rm",
+        "--user",
+        f"{os.getuid()}:{os.getgid()}",
+        "-v",
+        f"{ply_path.parent}:/ply:ro",
+        "-v",
+        f"{scene_dir}:/gt:ro",
+        "-v",
+        f"{out_dir}:/viz",
+        "--entrypoint",
+        spec.container["evaluator"],
+        spec.image,
+        "--reconstruction_ply_path",
+        f"/ply/{ply_path.name}",
+        "--ground_truth_mlp_path",
+        f"/gt/{relative_mlp}",
+        "--tolerances",
+        str(tolerance),
+        "--accuracy_cloud_output_path",
+        "/viz/accuracy",
+        "--completeness_cloud_output_path",
+        "/viz/completeness",
+    ]
+
+
 def evaluate(spec, ply_path, scene, width, log_dir=None, docker="docker", timeout=None):
     """Run the evaluator; return the score rows. Raises EvaluationFailed."""
     argv = evaluation_argv(spec, ply_path, scene, width, docker=docker)
