@@ -1,5 +1,7 @@
 import os
+import time
 import requests
+import urllib3
 import shutil
 import pathlib
 import functools
@@ -46,30 +48,56 @@ def extract_7z(archive_path, out_path):
         )
 
 
-def download_file(url, local_filename):
+def download_file(url, local_filename, attempts=8, timeout=60):
     """based on Mike's answer to:
     https://stackoverflow.com/questions/37573483/progress-bar-while-download-file-over-http-with-requests
+
+    www.eth3d.net intermittently drops TLS handshakes and connections, so a
+    failed attempt is retried with backoff, resuming from the bytes already
+    written when the server honours the Range request.
     """
+    path = pathlib.Path(local_filename).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with requests.get(url, stream=True, allow_redirects=True) as r:
-            if 300 < r.status_code < 200:
-                r.raise_for_status()
-                raise RuntimeError(
-                    f"Downloading file from {url} returned {r.status_code}"
-                )
+        for attempt in range(1, attempts + 1):
+            offset = path.stat().st_size if path.exists() else 0
+            headers = {"Range": f"bytes={offset}-"} if offset else {}
+            try:
+                with requests.get(
+                    url, stream=True, allow_redirects=True, headers=headers, timeout=timeout
+                ) as r:
+                    if r.status_code == 416:  # offset already at end of file
+                        return
+                    r.raise_for_status()
+                    resumed = r.status_code == 206
+                    if not resumed:
+                        offset = 0
 
-            file_size = int(r.headers.get("Content-Length", 0))
-
-            path = pathlib.Path(local_filename).expanduser().resolve()
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            desc = "Downloading (Unknown total file size)" if file_size == 0 else "Downloading"
-            r.raw.read = functools.partial(
-                r.raw.read, decode_content=True
-            )  # Decompress if needed
-            with tqdm.wrapattr(r.raw, "read", total=file_size, desc=desc) as r_raw:
-                with path.open("wb") as f:
-                    shutil.copyfileobj(r_raw, f)
+                    file_size = offset + int(r.headers.get("Content-Length", 0))
+                    desc = "Downloading (Unknown total file size)" if file_size == offset else "Downloading"
+                    r.raw.read = functools.partial(
+                        r.raw.read, decode_content=True
+                    )  # Decompress if needed
+                    with tqdm.wrapattr(
+                        r.raw, "read", total=file_size, initial=offset, desc=desc
+                    ) as r_raw:
+                        with path.open("ab" if resumed else "wb") as f:
+                            shutil.copyfileobj(r_raw, f)
+                if file_size != offset and path.stat().st_size != file_size:
+                    raise requests.ConnectionError(
+                        f"incomplete download: {path.stat().st_size} of {file_size} bytes"
+                    )
+                return
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                urllib3.exceptions.HTTPError,  # raw-stream reads raise urllib3's own errors
+            ) as e:
+                if attempt == attempts:
+                    raise
+                wait = min(2**attempt, 60)
+                print(f"Attempt {attempt}/{attempts} failed ({e}); retrying in {wait}s...")
+                time.sleep(wait)
     except Exception as e:
         # if an exception happens, remove the
         # temporary file
