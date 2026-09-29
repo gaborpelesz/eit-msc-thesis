@@ -12,7 +12,10 @@ Run docker container
 docker run --rm --gpus all -it sota-mvs:latest
 ```
 
-## Evaluation
+## Evaluation (v0, superseded by `bench`)
+
+The original harness (SQLite, wall time + F1). Kept for reference; campaigns
+are run with `bench` below.
 
 ```bash
 eval-cli --datasets courtyard --methods ACMH --width 1300 2>&1 | tee evaluation.log
@@ -36,9 +39,10 @@ and no number taken while `verify` was failing may be quoted.**
 ```bash
 deviations verify                                  # the whole manifest
 deviations verify --manifest path/to/methods.yaml
-deviations verify --arch 120 --binaries /sota      # also check the built binaries
+deviations verify --arch 120 --binaries /sota      # also check the built binaries (host cuobjdump)
+deviations verify --arch 120 --image sota-deps     # ... or inside the image's /sota
 deviations list                                    # the deviation table, from the forks' git logs
-deviations render                                  # not implemented yet
+deviations render                                  # DEVIATIONS.md, deviations.json, thesis/generated/*.tex
 ```
 
 It prints one `OK`/`FAIL` line per check per method and exits non-zero unless
@@ -69,8 +73,9 @@ every check passes. What it checks:
   so this check is what keeps the "all methods target the same architecture"
   claim honest.
 
-`--arch` and `--binaries` are given together; `--binaries` is the directory the
-image builds into (`/sota`).
+`--arch` requires either `--binaries` (a host directory holding the built
+binaries; needs `cuobjdump` on the host) or `--image` (a Docker image whose
+`/sota` holds them; `cuobjdump` runs inside it).
 
 ## Benchmark harness (`bench`)
 
@@ -96,9 +101,12 @@ becomes `<key>.tmp.<timestamp>.aborted` and a re-run moves the old record to
 bench plan   experiments/pilot-a.yaml [--pilot results/pilot-a]
 bench run    experiments/pilot-a.yaml [--only KEY ...] [--dry-run] [--rerun]
 bench fingerprint --image sota-deps:latest
+bench image-manifest [--out PATH]                  # build manifest `docker build` copies in
 bench status results/pilot-a --spec experiments/pilot-a.yaml
 bench query  results/pilot-a [--report wall|memory|quality|status] [--sql SQL]
-bench phases results/pilot-a/<run key>
+bench variance results/pilot-a [...]               # dispersion per method, D17 repeat count
+bench pair   --a results/arm-a --b results/arm-b   # two arms differing in one harness setting
+bench phases results/pilot-a/<run key> [--depth N]
 ```
 
 `bench run` refuses to start when `deviations verify` fails (R-ENV-01), when the
