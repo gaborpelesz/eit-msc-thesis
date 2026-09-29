@@ -1468,6 +1468,20 @@ methods:
           --no-debug-output to it -- the binary has no such flag.
         reversible: no
         affects: none
+      - class: instrumentation
+        description: >-
+          MVS_BENCH_SYNC=1 for this method only (campaign spec key
+          `method_env_by_method`, D25 addendum, 2026-09-29). CUMVS is the one
+          method with kernel launches not followed by a synchronise, so without
+          a device sync at each phase boundary the phase timer books GPU work to
+          whichever later phase waits for it: in the 2080 Ti shakedown its
+          patchmatch.init share read 0.90 % unsynced against 1.64 % synced, for
+          a wall-time difference of -1.2 s with a 95 % CI through zero (M-009,
+          pilot-b-sync). Every fork's vendored bench_timer.h reads the variable,
+          so it is set per method, never campaign-wide. Recorded per run in
+          run.json (`mvs_bench_sync`, `method_env_json`).
+        reversible: env MVS_BENCH_SYNC unset
+        affects: timing
 
   - name: quorum-mvs
     path: benchmark/methods/quorum-mvs
