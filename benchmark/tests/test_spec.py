@@ -167,3 +167,17 @@ def test_unquoted_yaml_off_is_refused_with_the_fix(tmp_path, spec_dict, manifest
     path.write_text(_yaml.safe_dump(spec_dict, sort_keys=False) + "\ndebug_output: off\n")
     with pytest.raises(sp.SpecError, match='write it quoted'):
         sp.load(path, manifest)
+
+
+def test_padding_required_lets_a_size_strict_method_into_a_shared_batch(
+    write_spec, spec_dict, manifest
+):
+    spec_dict["methods"] = ["ACMH", "APD-MVS"]
+    spec_dict["configurations"] = ["author", "norm10"]
+    spec_dict["padding"] = "required"
+    spec = sp.load(write_spec(spec_dict, "req.yaml"), manifest)
+    assert spec.padding == "required"
+
+    spec_dict["padding"] = "some"
+    with pytest.raises(sp.SpecError, match="D33"):
+        sp.load(write_spec(spec_dict, "bad.yaml"), manifest)

@@ -205,10 +205,13 @@ def load(path, manifest=None):
         )
 
     padding = str(data.get("padding", "none"))
-    if padding not in ("none", "all"):
+    # `required` (D33, amending R-EXP-09): the shared converter pads exactly the
+    # methods whose `requires_equal_image_sizes` is true, which is what their
+    # own converters do under `author` (F-006), so `author` and the shared
+    # configurations give every method the same kind of input.
+    if padding not in ("none", "all", "required"):
         raise SpecError(
-            f"{path}: `padding` must be `none` or `all`; R-EXP-09 allows no "
-            "per-method padding under a shared converter"
+            f"{path}: `padding` must be `none`, `all` or `required` (R-EXP-09, D33)"
         )
 
     campaign = str(_require(data, "campaign", str(path)))
@@ -354,7 +357,11 @@ def validate_against_manifest(spec, manifest):
         # forces the whole batch's choice and the operator has to make it.
         shared = [c for c in spec.configurations if c != "author"]
         declared_equal = bool(spec.data.get("scenes_have_equal_image_sizes", False))
-        if entry.get("requires_equal_image_sizes") and shared and spec.padding != "all":
+        if (
+            entry.get("requires_equal_image_sizes")
+            and shared
+            and spec.padding not in ("all", "required")
+        ):
             for scene in spec.scenes:
                 for width in spec.widths:
                     sizes = scene_image_sizes(spec.raw_scene_dir(scene, width))
@@ -363,7 +370,7 @@ def validate_against_manifest(spec, manifest):
                             f"method `{name}` aborts unless every image has the "
                             f"same size, configuration(s) {', '.join(shared)} use "
                             f"the shared converter, and scene `{scene}` is not on "
-                            "disk to check. Either set `padding: all`, or assert "
+                            "disk to check. Either set `padding: all` or `required`, or assert "
                             "`scenes_have_equal_image_sizes: true` (R-EXP-09)."
                         )
                     if sizes is not None and len(sizes) > 1:
@@ -371,8 +378,8 @@ def validate_against_manifest(spec, manifest):
                         raise SpecError(
                             f"scene `{scene}` at width {width} has {len(sizes)} image "
                             f"sizes ({dims}); method `{name}` would abort and "
-                            "R-EXP-09 forbids per-method padding. Choose a uniform "
-                            "scene (F-021) or set `padding: all`."
+                            "padding is off. Choose a uniform scene (F-021) or set "
+                            "`padding: all` or `required` (R-EXP-09, D33)."
                         )
 
 

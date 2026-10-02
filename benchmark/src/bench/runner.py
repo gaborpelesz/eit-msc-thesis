@@ -224,7 +224,9 @@ def preprocess_argv(spec, entry, run):
             "shared_converter", "/sota/.venv/bin/colmap2mvsnet_acm_perf"
         )
         extra = list(spec.converter_args.get(run.configuration, []))
-        if spec.padding == "all":
+        if spec.padding == "all" or (
+            spec.padding == "required" and entry.get("requires_equal_image_sizes")
+        ):
             extra.append("--padding")
 
     if converter.endswith(".py"):

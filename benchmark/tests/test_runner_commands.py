@@ -332,3 +332,24 @@ def test_run_key_round_trips_through_the_visualize_parser(write_spec, spec_dict,
         assert cli._run_from_key(run.key) == run
     with pytest.raises(sp.SpecError):
         cli._run_from_key("ACMM__kicker__3200__author__r1")
+
+
+def test_padding_required_pads_only_the_methods_that_require_equal_sizes(
+    write_spec, spec_dict, manifest
+):
+    spec = _spec(
+        write_spec,
+        dict(spec_dict),
+        manifest,
+        methods=["ACMM", "APD-MVS", "DPE-MVS"],
+        configurations=["author", "norm10"],
+        padding="required",
+    )
+    for run in sp.expand(spec):
+        entry = sp.method_entry(manifest, run.method)
+        argv = rn.preprocess_argv(spec, entry, run)
+        padded = "--padding" in argv
+        if run.configuration == "author":
+            assert not padded  # the fork's own converter, which pads by itself
+        else:
+            assert padded == bool(entry.get("requires_equal_image_sizes")), run.key
