@@ -601,10 +601,12 @@ methods:
     harness_deviations:
       - class: normalization
         description: >-
-          norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the
-          scene needs it, then for every method) instead of the fork's own
+          norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's own
           converter, which pads AND re-encodes AND optionally rescales. author
-          runs the fork's own converter.
+          runs the fork's own converter. On a mixed-size scene the shared
+          converter pads too: for every method under `padding: all`, or for
+          this method alone under `padding: required` (D33, campaign-02), which
+          mirrors what the fork's converter does under author.
         reversible: configuration author
         affects: quality
       - class: normalization
@@ -1144,10 +1146,12 @@ methods:
     harness_deviations:
       - class: normalization
         description: >-
-          norm10 only: shared colmap2mvsnet_acm_perf (with --padding if the
-          scene needs it, then for every method) instead of the fork's own
+          norm10 only: shared colmap2mvsnet_acm_perf instead of the fork's own
           converter, which pads AND re-encodes AND optionally rescales. author
-          runs the fork's own converter.
+          runs the fork's own converter. On a mixed-size scene the shared
+          converter pads too: for every method under `padding: all`, or for
+          this method alone under `padding: required` (D33, campaign-02), which
+          mirrors what the fork's converter does under author.
         reversible: configuration author
         affects: quality
       - class: normalization
