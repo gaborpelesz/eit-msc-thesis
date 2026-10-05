@@ -1,0 +1,60 @@
+# Quorum MVS v1 (1f4c3bf, `provenance: own`) shakedown on the RTX 5070 / sm_120
+# before quorum-v1-campaign-01 and -02 (author, 2026-10-05): pipes at 1600
+# (smallest scene) and facade at 3200 (76 images, the memory risk), `author`,
+# one repeat. Catches crashes and shows facade's footprint and the runtime.
+# Never quoted; the campaigns run both cells again. Otherwise campaign-02's
+# settings (`padding: required` has no effect on Quorum MVS).
+
+version: 1
+campaign: quorum-v1-shakedown
+image: mvs-bench:sm120
+
+methods:
+  - quorum-mvs
+scenes: [pipes, facade]
+
+# R-EXP-09/D33: mixed-size scenes, so no equal-size assertion; `expand()` reads
+# the prepared scenes and `padding: required` is what lets APD-MVS and DPE-MVS
+# run under the shared converter. Prepared by eth3d/prepare_scene.py from the
+# 2026-09-29 download (HAMMING resampling, JPEG q100 4:4:4), as campaign-01.
+padding: required
+widths: [1600, 3200]
+configurations: [author]
+repeats: 1
+exclude:
+  - {scene: pipes, width: 3200}
+  - {scene: facade, width: 1600}
+
+# The campaign settings, written out rather than left to the defaults they
+# happen to match: the phase timer on (R-TIM-09 instrumented arm) and the debug
+# artefacts off (R-EXP-11 in force). `method_env` stays empty — MVS_BENCH_SYNC
+# is read by every fork's vendored bench_timer.h, not only by CUMVS, so the
+# D25 addendum for CUMVS cannot be served by a campaign-wide variable; it is
+# `method_env_by_method` instead; CUMVS is not in this campaign, so it is absent.
+phase_timer: true
+debug_output: "off"
+method_env: {}
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+# c703dfb is the MVE_PCL_IO_FALLBACK=ON build, which is what makes CUMVS's
+# ASCII clouds scoreable at all (F-074).
+evaluator_sha: c703dfba4ce3fd91ed740d55bc9b24be8030c4e0
+
+# R-EXP-03: refuse the wrong machine before the first container starts, rather
+# than binding to whichever host runs first.
+fingerprint:
+  gpu_model: "NVIDIA GeForce RTX 5070"
+  driver_version: "595.91.07"
+  cuda_version: "13.2"
+
+# All benchmark data lives under the repository's git-ignored `.data/`.
+paths:
+  dataset_root: /home/gabor/thesis/.data/eth3d
+  results_root: /home/gabor/thesis/.data/bench/results
+  work_root: /home/gabor/thesis/.data/bench/work
+  artifacts_root: /home/gabor/thesis/.data/bench/clouds
