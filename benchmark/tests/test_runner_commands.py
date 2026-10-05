@@ -353,3 +353,22 @@ def test_padding_required_pads_only_the_methods_that_require_equal_sizes(
             assert not padded  # the fork's own converter, which pads by itself
         else:
             assert padded == bool(entry.get("requires_equal_image_sizes")), run.key
+
+
+def test_width_params_fill_a_placeholder_by_run_width_and_refuse_a_missing_width(
+    write_spec, spec_dict, manifest
+):
+    spec = _spec(write_spec, dict(spec_dict), manifest, methods=["ACMM"])
+    entry = dict(sp.method_entry(manifest, "ACMM"))
+    entry["invocation"] = ["{executable}", "--levels", "{levels}"]
+    entry["width_params"] = {"levels": {1600: 3, 3200: 4}}
+    seen = {}
+    for run in sp.expand(spec):
+        argv = rn.resolve_invocation(spec, entry, run)
+        seen[run.width] = argv[argv.index("--levels") + 1]
+    assert seen == {1600: "3", 3200: "4"}
+
+    entry["width_params"] = {"levels": {3200: 4}}
+    run = next(r for r in sp.expand(spec) if r.width == 1600)
+    with pytest.raises(rn.RunnerError, match="no value"):
+        rn.resolve_invocation(spec, entry, run)

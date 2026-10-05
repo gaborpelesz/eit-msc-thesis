@@ -144,6 +144,14 @@ def placeholder_values(spec, entry, run):
         # that is stable across a re-run of the same specification, so it is
         # what such a method's seed is written in terms of.
         "repeat": str(run.repeat),
+        # Values that depend on the run's width, from the entry's
+        # `width_params` (e.g. Quorum MVS's pyramid depth, which must fit
+        # above its size floor). A width the entry gives no value for renders
+        # empty, and resolve_invocation refuses the run rather than guess.
+        **{
+            str(name): str((by_width or {}).get(run.width, ""))
+            for name, by_width in (entry.get("width_params") or {}).items()
+        },
     }
 
 

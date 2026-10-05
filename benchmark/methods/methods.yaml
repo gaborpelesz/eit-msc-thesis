@@ -1515,12 +1515,16 @@ methods:
     # --num-source-views 20 --sampling adaptive --patch-scales 2. --seed and
     # --device are required arguments with no defaults; the seed is the run's
     # repeat index, so repeats 1..N draw seeds 1..N.
+    # The pyramid must fit above --size-bound 500: four levels at 3200, three
+    # at 1600 (the binary refuses --levels 4 there). Author, 2026-10-05.
+    width_params:
+      levels: {1600: 3, 3200: 4}
     invocation: ["{executable}", "{dataset_dir}",
                  "--seed", "{repeat}",
                  "--device", "{gpu_index}",
                  "--num-source-views", "20",
                  "--size-bound", "500",
-                 "--levels", "4",
+                 "--levels", "{levels}",
                  "--geom-passes", "2",
                  "--use-prior", "on",
                  "--prior-position", "acmmp",
@@ -1645,6 +1649,17 @@ methods:
           against which the others' confounding can be read."
         reversible: flag --neighbours=20
         affects: timing,memory,quality
+      - class: interface
+        description: >-
+          --levels by width: 4 at 3200 (every number measured before
+          2026-10-05) and 3 at 1600, from `width_params`. With --size-bound
+          500 the pyramid of a 1600-wide image halves only to three levels
+          above the floor, so the binary refuses --levels 4 at that width
+          (exit 2 at start-up, quorum-v1-shakedown, 2026-10-05: "--levels 4
+          but image 0 halves to 3 level(s) above the 500 px floor"). Author,
+          2026-10-05.
+        reversible: no
+        affects: timing,quality
       - class: interface
         description: >-
           The harness supplies the seed. --seed is a required argument with no
