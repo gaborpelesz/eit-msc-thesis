@@ -1,0 +1,78 @@
+# Quorum MVS v2 -- the thesis author's own method (`provenance: own`; not a
+# fork, and not CUMVS, which is a third-party optimization) at commit
+# 27021473c69f8ff36186b6f126d4704ec95656d1 (2702147, 2026-10-05): the FIRST
+# measured version. v1 (1f4c3bf) was shaken down on this card and never
+# measured: its 48 M-point device fusion buffer overflowed on facade at 3200
+# (M-015). v2 streams the fused cloud to a host buffer sized at the hard bound;
+# no CLI flag or default changed. A later version is measured as quorum-v3,
+# never by editing this file. Every run record carries the commit as
+# `fork_sha`.
+#
+# 13 scenes x {1600, 3200} x {author, norm10} x 2 repeats (D31) = 104 runs,
+# Quorum MVS ALONE (D34). The ten baselines are campaign-01 and campaign-02 and
+# are not re-run. This campaign runs on mvs-bench:sm120-q2, rebuilt for 2702147,
+# not on the baselines' mvs-bench:sm120 (39de44d2...). The equivalence argument
+# (D34): the two image manifests differ only in quorum-mvs's fork_sha, and the
+# baseline binaries, converters and evaluator are byte-identical across the two
+# images -- evidence in .data/bench/diag/quorum-v2-image/ and M-016.
+#
+# Everything else is campaign-01/02's: widths, configurations, repeats,
+# timeout, tolerances, evaluator, fingerprint, card 0 of gabor-dev0 (RTX 5070
+# 12 GB), SM clock locked at 2700 MHz (reads back 2692) at stock 250 W,
+# headless, randomized order. Quorum MVS ships no converter, so the shared
+# converter prepares it in both configurations; `--levels` is 4 at 3200 and 3
+# at 1600 (methods.yaml `width_params`, author 2026-10-05). Failures are
+# results (R-FAIL-01).
+
+version: 1
+campaign: quorum-v2
+image: mvs-bench:sm120-q2
+
+methods:
+  - quorum-mvs
+scenes: [delivery_area, kicker, meadow, office, pipes, relief, relief_2,
+         courtyard, electro, facade, playground, terrace, terrains]
+
+# All thirteen ETH3D training scenes: campaign-01's seven uniform-size ones and
+# campaign-02's six mixed-size ones (F-021), in one randomized campaign (author,
+# 2026-10-05). Quorum MVS does not require equal image sizes, so no padding is
+# applied and none is needed; campaign-02's `padding: required` would have had
+# no effect on it either. Scenes as prepared on 2026-09-29/10-01 (M-013, M-014).
+padding: none
+widths: [1600, 3200]
+configurations: [author, norm10]
+repeats: 2
+
+# The campaign settings, written out rather than left to the defaults they
+# happen to match: the phase timer on (R-TIM-09 instrumented arm) and the debug
+# artefacts off (R-EXP-11 in force). `method_env` stays empty — MVS_BENCH_SYNC
+# is read by every fork's vendored bench_timer.h, not only by CUMVS, so the
+# D25 addendum for CUMVS cannot be served by a campaign-wide variable; it is
+# `method_env_by_method` instead; CUMVS is not in this campaign, so it is absent.
+phase_timer: true
+debug_output: "off"
+method_env: {}
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+# c703dfb is the MVE_PCL_IO_FALLBACK=ON build, which is what makes CUMVS's
+# ASCII clouds scoreable at all (F-074).
+evaluator_sha: c703dfba4ce3fd91ed740d55bc9b24be8030c4e0
+
+# R-EXP-03: refuse the wrong machine before the first container starts, rather
+# than binding to whichever host runs first.
+fingerprint:
+  gpu_model: "NVIDIA GeForce RTX 5070"
+  driver_version: "595.91.07"
+  cuda_version: "13.2"
+
+# All benchmark data lives under the repository's git-ignored `.data/`.
+paths:
+  dataset_root: /home/gabor/thesis/.data/eth3d
+  results_root: /home/gabor/thesis/.data/bench/results
+  work_root: /home/gabor/thesis/.data/bench/work
+  artifacts_root: /home/gabor/thesis/.data/bench/clouds

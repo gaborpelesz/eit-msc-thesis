@@ -1,0 +1,59 @@
+# Quorum MVS v2 (2702147, `provenance: own`) shakedown through the harness on
+# mvs-bench:sm120-q2, before quorum-v2: pipes at 1600 (the `--levels 3` path)
+# and facade at 3200 (the v1 overflow), `author`, one repeat. Never quoted;
+# quorum-v2 runs both cells again. Settings otherwise quorum-v2's.
+
+version: 1
+campaign: quorum-v2-shakedown
+image: mvs-bench:sm120-q2
+
+methods:
+  - quorum-mvs
+scenes: [pipes, facade]
+
+# All thirteen ETH3D training scenes: campaign-01's seven uniform-size ones and
+# campaign-02's six mixed-size ones (F-021), in one randomized campaign (author,
+# 2026-10-05). Quorum MVS does not require equal image sizes, so no padding is
+# applied and none is needed; campaign-02's `padding: required` would have had
+# no effect on it either. Scenes as prepared on 2026-09-29/10-01 (M-013, M-014).
+padding: none
+widths: [1600, 3200]
+configurations: [author]
+repeats: 1
+exclude:
+  - {scene: pipes, width: 3200}
+  - {scene: facade, width: 1600}
+
+# The campaign settings, written out rather than left to the defaults they
+# happen to match: the phase timer on (R-TIM-09 instrumented arm) and the debug
+# artefacts off (R-EXP-11 in force). `method_env` stays empty — MVS_BENCH_SYNC
+# is read by every fork's vendored bench_timer.h, not only by CUMVS, so the
+# D25 addendum for CUMVS cannot be served by a campaign-wide variable; it is
+# `method_env_by_method` instead; CUMVS is not in this campaign, so it is absent.
+phase_timer: true
+debug_output: "off"
+method_env: {}
+
+timeout_seconds: 21600        # R-EXP-04, D12
+gpu_index: 0
+primary_tolerance: 0.02
+tolerances: [0.01, 0.02, 0.05, 0.1, 0.2]
+
+# The pinned commit of multi-view-evaluation built into the image (R-QUA-02).
+# c703dfb is the MVE_PCL_IO_FALLBACK=ON build, which is what makes CUMVS's
+# ASCII clouds scoreable at all (F-074).
+evaluator_sha: c703dfba4ce3fd91ed740d55bc9b24be8030c4e0
+
+# R-EXP-03: refuse the wrong machine before the first container starts, rather
+# than binding to whichever host runs first.
+fingerprint:
+  gpu_model: "NVIDIA GeForce RTX 5070"
+  driver_version: "595.91.07"
+  cuda_version: "13.2"
+
+# All benchmark data lives under the repository's git-ignored `.data/`.
+paths:
+  dataset_root: /home/gabor/thesis/.data/eth3d
+  results_root: /home/gabor/thesis/.data/bench/results
+  work_root: /home/gabor/thesis/.data/bench/work
+  artifacts_root: /home/gabor/thesis/.data/bench/clouds

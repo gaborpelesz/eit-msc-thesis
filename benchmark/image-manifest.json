@@ -7,7 +7,7 @@
     "path": "benchmark/eth3d/multi-view-evaluation",
     "sha": "c703dfba4ce3fd91ed740d55bc9b24be8030c4e0"
   },
-  "generated_at": "2026-09-29T14:02:58.215567+00:00",
+  "generated_at": "2026-10-05T11:48:31.624412+00:00",
   "methods": [
     {
       "converter": {
@@ -185,7 +185,7 @@
         "sha256": "99e821f65ba3d3657261e7ae19d3c1499479b483001bb98f6828890dc301bc13"
       },
       "dirty": false,
-      "fork_sha": "1f4c3bff43168312276682f8fc1b095900ed581a",
+      "fork_sha": "27021473c69f8ff36186b6f126d4704ec95656d1",
       "name": "quorum-mvs",
       "path": "benchmark/methods/quorum-mvs",
       "provenance": "own",
