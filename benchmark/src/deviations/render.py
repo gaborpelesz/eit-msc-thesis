@@ -309,7 +309,7 @@ def _plain(value, limit=None):
 
 
 def _ident(value):
-    """A manifest identifier list (class, affects, reversible) as one cell."""
+    """A manifest identifier (method name, class, affects, reversible) as one cell."""
     return [ts.ident(tex.oneline(value))]
 
 
@@ -327,7 +327,7 @@ def deviations_table(doc):
             )
             rows.append(
                 [
-                    _plain(method["name"]),
+                    _ident(method["name"]),
                     [ts.mono("--")],
                     [ts.DASH],
                     [ts.DASH],
@@ -339,7 +339,7 @@ def deviations_table(doc):
         for index, commit in enumerate(method["fork_deviations"]):
             rows.append(
                 [
-                    _plain(method["name"]) if index == 0 else [],
+                    _ident(method["name"]) if index == 0 else [],
                     [ts.mono(tex.oneline(_short(commit["sha"])))],
                     _ident(commit.get("deviation")) if commit.get("deviation") else [ts.DASH],
                     _ident(commit.get("affects")) if commit.get("affects") else [ts.DASH],
@@ -380,7 +380,7 @@ def provenance_table(doc):
     for method in doc["methods"]:
         rows.append(
             [
-                _plain(method["name"]),
+                _ident(method["name"]),
                 [ts.mono(tex.oneline(method["provenance"]))],
                 _plain(method["status"]),
                 [ts.url(method["upstream"])] if method["upstream"] else [ts.DASH],
