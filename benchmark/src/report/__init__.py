@@ -7,7 +7,8 @@ no number is ever typed by hand. This package is that script.
 Input is one or more campaign directories as `bench run` writes them
 (`spec.yaml`, `fingerprint.json`, `deviations.json`, one directory per run with
 `run.json`, `telemetry.parquet`, `phases.txt`). Output is
-`thesis/generated/results-<campaign>-*.tex` plus pgfplots figure sources.
+`thesis/generated/results-<campaign>-*.tex` plus pgfplots figure sources, and
+for the Typst manuscript each table again as `.typ` + `.table.json`.
 
 Two rules the generator enforces rather than assumes:
 

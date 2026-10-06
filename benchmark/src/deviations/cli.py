@@ -4,9 +4,10 @@
     deviations list   [--manifest PATH]
     deviations render [--manifest PATH] [--methods-dir DIR] [--thesis-dir DIR]
 
-`render` writes the four generated artefacts -- `benchmark/methods/DEVIATIONS.md`,
-`benchmark/methods/deviations.json`, `thesis/generated/deviations.tex` and
-`thesis/generated/methods-provenance.tex` -- from the manifest and the forks'
+`render` writes the generated artefacts -- `benchmark/methods/DEVIATIONS.md`,
+`benchmark/methods/deviations.json`, and in `thesis/generated/` the tables
+`deviations` and `methods-provenance`, each as `.tex` and, for Typst, as
+`.typ` plus `.table.json` -- from the manifest and the forks'
 `upstream-base..HEAD` logs. They are never hand-edited; re-run `render` instead.
 """
 
@@ -60,8 +61,8 @@ def main():
 
     render_parser = subparsers.add_parser(
         "render",
-        help="write DEVIATIONS.md, deviations.json, deviations.tex and "
-        "methods-provenance.tex from the manifest and the forks' git logs",
+        help="write DEVIATIONS.md, deviations.json and the thesis tables "
+        "(.tex, .typ, .table.json) from the manifest and the forks' git logs",
     )
     add_manifest_argument(render_parser)
     render_parser.add_argument(
@@ -70,7 +71,7 @@ def main():
     )
     render_parser.add_argument(
         "--thesis-dir",
-        help=f"where the .tex tables go (default: {rd.THESIS_GENERATED}/)",
+        help=f"where the thesis tables go (default: {rd.THESIS_GENERATED}/)",
     )
 
     args = parser.parse_args()

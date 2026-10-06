@@ -1,12 +1,13 @@
-"""The generated LaTeX result tables.
+"""The generated result tables.
 
 Every cell is a number read from the store; the only text that is not is a
 method name, a provenance and a status, all of which come from the manifest or
-the record. Table geometry and escaping are shared with the deviation
-artefacts (`deviations.latex`).
+the record. Each table is built once as a `deviations.typeset.Table` and
+written as LaTeX (geometry and escaping shared with the deviation artefacts,
+`deviations.latex`) and as Typst data plus a `.typ` (`deviations.typst`).
 """
 
-from deviations import latex as tex
+from deviations import typeset as ts
 
 from .load import MIB, OK
 
@@ -23,42 +24,66 @@ def num(value, digits=1):
     return "--" if value is None else f"{value:,.{digits}f}"
 
 
-def pm(mean, sd, digits=1):
-    """`mean $\\pm$ sd`; a single run has no SD and must not pretend to."""
+def num_cell(value, digits=1):
+    return [ts.DASH] if value is None else [ts.text(num(value, digits))]
+
+
+def pm_cell(mean, sd, digits=1):
+    """mean +- sd; a single run has no SD and must not pretend to."""
     if mean is None:
-        return "--"
+        return [ts.DASH]
     if sd is None:
-        return num(mean, digits)
-    return f"{num(mean, digits)}\\,$\\pm$\\,{num(sd, digits)}"
+        return num_cell(mean, digits)
+    return [ts.text(num(mean, digits)), ts.PM, ts.text(num(sd, digits))]
+
+
+def pm(mean, sd, digits=1):
+    """`mean $\\pm$ sd`, as LaTeX."""
+    return ts.cell_tex(pm_cell(mean, sd, digits))
 
 
 def provenance_cell(value):
-    return tex.escape(PROVENANCE_SHORT.get(value, value))
+    return [ts.text(PROVENANCE_SHORT.get(value, value))]
 
 
 def status_cell(counts):
     """Every status, ok first, so a failure can never be read as an absence."""
     if not counts:
-        return "--"
+        return [ts.DASH]
     ordered = sorted(counts.items(), key=lambda kv: (kv[0] != OK, kv[0]))
-    return ", ".join(f"{tex.escape(name)}~{count}" for name, count in ordered)
+    out = []
+    for index, (name, count) in enumerate(ordered):
+        if index:
+            out.append(ts.text(", "))
+        out += [ts.text(name), ts.NBSP, ts.text(count)]
+    return out
 
 
 def label(campaign, kind):
     return f"tab:results-{campaign.name}-{kind}"
 
 
+def stem(campaign, kind):
+    """File stem shared by the `.tex`, `.typ` and `.table.json` of one table."""
+    return f"results-{campaign.name}-{kind}"
+
+
+def document(table, campaign, command=COMMAND):
+    """The `.tex` artefact for a result table."""
+    return ts.tex_document(table, command, str(campaign.directory))
+
+
 # ---------------------------------------------------------------------------
 
 
-SUMMARY_CAPTION = (
+SUMMARY_CAPTION = ts.cell(
     "Per method: provenance, configuration, completed runs, wall time of the "
     "measured stage and of the stage plus its converter, F1 at the primary "
     "tolerance, peak device memory, and the outcome of every run."
 )
 
 
-def summary(campaign, command=COMMAND):
+def summary_table(campaign, command=COMMAND):
     counts = campaign.status_counts()
     rows = {(r["method"], r["configuration"]): r for r in campaign.summary_rows()}
     body = []
@@ -69,34 +94,36 @@ def summary(campaign, command=COMMAND):
                 continue
             peak = row["peak_device_bytes"]
             body.append(
-                tex.row(
-                    [
-                        tex.escape(method),
-                        provenance_cell(campaign.provenance(method)),
-                        tex.escape(configuration),
-                        f"{row['n_ok']}/{row['runs']}",
-                        pm(row["wall_mean"], row["wall_sd"]),
-                        num(row["wall_prep_mean"]),
-                        num(row["convert_mean"]),
-                        pm(row["f1_mean"], row["f1_sd"], digits=4),
-                        num(peak / MIB, 0) if peak else "--",
-                        status_cell(counts.get((method, configuration))),
-                    ]
-                )
+                [
+                    [ts.text(method)],
+                    provenance_cell(campaign.provenance(method)),
+                    [ts.text(configuration)],
+                    [ts.text(f"{row['n_ok']}/{row['runs']}")],
+                    pm_cell(row["wall_mean"], row["wall_sd"]),
+                    num_cell(row["wall_prep_mean"]),
+                    num_cell(row["convert_mean"]),
+                    pm_cell(row["f1_mean"], row["f1_sd"], digits=4),
+                    num_cell(peak / MIB, 0) if peak else [ts.DASH],
+                    status_cell(counts.get((method, configuration))),
+                ]
             )
     attribution = {
         r["attribution"] for r in rows.values() if r["attribution"]
     }
-    footer = tex.escape(campaign.footer(command)) + (
-        " Wall time is the measured container alone; \\emph{+prep} adds the converter, "
-        "which is timed as its own phase. Peak device memory is the "
-        f"{tex.escape('/'.join(sorted(attribution)) or 'process')}-attributed maximum "
+    footer = ts.cell(
+        campaign.footer(command),
+        " Wall time is the measured container alone; ",
+        ts.emph("+prep"),
+        " adds the converter, which is timed as its own phase. Peak device memory "
+        f"is the {'/'.join(sorted(attribution)) or 'process'}-attributed maximum "
         "over the run's telemetry samples, not a mean. "
-        f"F1 is at tolerance {num(campaign.primary_tolerance, 2)}\\,m."
+        f"F1 is at tolerance {num(campaign.primary_tolerance, 2)}",
+        ts.THIN,
+        "m.",
     )
-    return tex.header(command, str(campaign.directory)) + tex.BOOKTABS_FALLBACK + "\n" + tex.table(
-        "@{}lllrrrrrrl@{}",
-        [
+    return ts.Table(
+        colspec="@{}lllrrrrrrl@{}",
+        head=[
             "method",
             "provenance",
             "conf.",
@@ -108,24 +135,32 @@ def summary(campaign, command=COMMAND):
             "peak MiB",
             "status",
         ],
-        body,
-        SUMMARY_CAPTION,
-        label(campaign, "summary"),
-        footer,
+        rows=body,
+        caption=SUMMARY_CAPTION,
+        label=label(campaign, "summary"),
+        footer=footer,
     )
+
+
+def summary(campaign, command=COMMAND):
+    return document(summary_table(campaign, command), campaign, command)
 
 
 # ---------------------------------------------------------------------------
 
 
-PHASES_CAPTION = (
-    "Exclusive time per phase group as a percentage of the method's measured "
-    "\\texttt{run} span. The residual is time inside \\texttt{run} that no phase "
-    "span claims, so the columns and the residual sum to 100\\,\\%."
+PHASES_CAPTION = ts.cell(
+    "Exclusive time per phase group as a percentage of the method's measured ",
+    ts.mono("run"),
+    " span. The residual is time inside ",
+    ts.mono("run"),
+    " that no phase span claims, so the columns and the residual sum to 100",
+    ts.THIN,
+    "%.",
 )
 
 
-def phases(campaign, rows, disagreements, command=COMMAND):
+def phases_table(campaign, rows, disagreements, command=COMMAND):
     from .load import PHASE_GROUPS
 
     groups = [name for name, _ in PHASE_GROUPS]
@@ -137,78 +172,83 @@ def phases(campaign, rows, disagreements, command=COMMAND):
         if not row["base_is_run"]:
             truncated.append(row["run_key"])
         cells = [
-            tex.escape(row["method"]),
-            tex.escape(row["configuration"]),
-            num(row["base_s"]) + ("" if row["base_is_run"] else "$^{*}$"),
+            [ts.text(row["method"])],
+            [ts.text(row["configuration"])],
+            [ts.text(num(row["base_s"]))] + ([] if row["base_is_run"] else [ts.sup("*")]),
         ]
         cells += [
-            f"{row['shares'][g]:.1f}" if row["shares"].get(g) else "--" for g in groups
+            [ts.text(f"{row['shares'][g]:.1f}")] if row["shares"].get(g) else [ts.DASH]
+            for g in groups
         ]
         # Floating-point summation leaves a residual of -1e-14 on a trace that
         # balances exactly; printing it as "-0.00" invites the wrong question.
         residual = row["residual"] if abs(row["residual"]) >= 0.005 else 0.0
-        cells.append(f"{residual:+.2f}")
-        body.append(tex.row(cells))
+        cells.append([ts.text(f"{residual:+.2f}")])
+        body.append(cells)
 
-    notes = []
+    footer = ts.cell(
+        campaign.footer(command),
+        " One run per method, the longest ",
+        ts.mono("status=ok"),
+        " repeat, named in the store; a phase share is structural, not a quantity "
+        "to average over repeats. The converter is excluded: it runs outside the ",
+        ts.mono("run"),
+        " span.",
+    )
     # A method with no completed run has no decomposition, so this table is
     # shorter than the summary table; say which methods are missing and why,
     # rather than letting a reader conclude they were not benchmarked.
     absent = [m for m in campaign.methods if m not in {r["method"] for r in rows}]
     if absent:
-        notes.append(
-            "No completed run, hence no row: " + tex.escape(", ".join(absent)) + "."
-        )
+        footer += ts.cell(" No completed run, hence no row: " + ", ".join(absent) + ".")
     if truncated:
-        notes.append(
-            "$^{*}$ no closed \\texttt{run} span (truncated trace); the base is the "
-            "summed exclusive time instead: " + tex.escape(", ".join(truncated)) + "."
+        footer += ts.cell(
+            " ",
+            ts.sup("*"),
+            " no closed ",
+            ts.mono("run"),
+            " span (truncated trace); the base is the summed exclusive time "
+            "instead: " + ", ".join(truncated) + ".",
         )
     if unmapped:
-        notes.append(
-            "Spans outside every group, counted in the residual: "
-            + tex.escape(", ".join(sorted(unmapped)))
+        footer += ts.cell(
+            " Spans outside every group, counted in the residual: "
+            + ", ".join(sorted(unmapped))
             + "."
         )
     if disagreements:
-        notes.append(
-            "Phase totals re-derived from \\texttt{phases.txt} disagree with the "
-            "stored totals for: "
-            + tex.escape(
-                "; ".join(f"{key} ({', '.join(names)})" for key, names in disagreements)
-            )
-            + "."
+        footer += ts.cell(
+            " Phase totals re-derived from ",
+            ts.mono("phases.txt"),
+            " disagree with the stored totals for: "
+            + "; ".join(f"{key} ({', '.join(names)})" for key, names in disagreements)
+            + ".",
         )
-    footer = " ".join(
-        [
-            tex.escape(campaign.footer(command)),
-            "One run per method, the longest \\texttt{status=ok} repeat, named in the "
-            "store; a phase share is structural, not a quantity to average over "
-            "repeats. The converter is excluded: it runs outside the \\texttt{run} span.",
-        ]
-        + notes
+    return ts.Table(
+        colspec="@{}ll" + "r" * (len(groups) + 2) + "@{}",
+        head=["method", "conf.", "run s"] + groups + ["resid."],
+        rows=body,
+        caption=PHASES_CAPTION,
+        label=label(campaign, "phases"),
+        footer=footer,
     )
-    return tex.header(command, str(campaign.directory)) + tex.BOOKTABS_FALLBACK + "\n" + tex.table(
-        "@{}ll" + "r" * (len(groups) + 2) + "@{}",
-        ["method", "conf.", "run s"] + groups + ["resid."],
-        body,
-        PHASES_CAPTION,
-        label(campaign, "phases"),
-        footer,
-    )
+
+
+def phases(campaign, rows, disagreements, command=COMMAND):
+    return document(phases_table(campaign, rows, disagreements, command), campaign, command)
 
 
 # ---------------------------------------------------------------------------
 
 
-TOLERANCES_CAPTION = (
+TOLERANCES_CAPTION = ts.cell(
     "F1 at every evaluated tolerance, mean over the completed runs of each "
     "method. Accuracy and completeness at the primary tolerance are given "
     "alongside, since F1 alone hides which of the two a method trades away."
 )
 
 
-def tolerances(campaign, command=COMMAND):
+def tolerances_table(campaign, command=COMMAND):
     values = {
         (r["method"], r["configuration"], round(r["tolerance"], 6)): r
         for r in campaign.tolerance_rows()
@@ -218,30 +258,39 @@ def tolerances(campaign, command=COMMAND):
     body = []
     for method in campaign.methods:
         for configuration in campaign.configurations:
-            cells = [tex.escape(method), tex.escape(configuration)]
+            cells = [[ts.text(method)], [ts.text(configuration)]]
             present = [
                 values.get((method, configuration, round(t, 6))) for t in columns
             ]
             if not any(present):
                 continue
-            cells.append(str(max((r["n"] for r in present if r), default=0)))
-            cells += [pm(r["f1_mean"], r["f1_sd"], 4) if r else "--" for r in present]
+            cells.append([ts.text(max((r["n"] for r in present if r), default=0))])
+            cells += [pm_cell(r["f1_mean"], r["f1_sd"], 4) if r else [ts.DASH] for r in present]
             at_primary = values.get((method, configuration, round(primary or 0, 6)))
-            cells.append(num(at_primary["accuracy_mean"], 4) if at_primary else "--")
-            cells.append(num(at_primary["completeness_mean"], 4) if at_primary else "--")
-            body.append(tex.row(cells))
-    footer = tex.escape(campaign.footer(command)) + (
-        f" Tolerances in metres; {num(primary, 2)}\\,m is the primary one. "
+            cells.append(num_cell(at_primary["accuracy_mean"], 4) if at_primary else [ts.DASH])
+            cells.append(
+                num_cell(at_primary["completeness_mean"], 4) if at_primary else [ts.DASH]
+            )
+            body.append(cells)
+    footer = ts.cell(
+        campaign.footer(command),
+        f" Tolerances in metres; {num(primary, 2)}",
+        ts.THIN,
+        "m is the primary one. "
         "A run that produced no point cloud contributes no F1 at any tolerance "
-        "and is counted in the status column of the summary table, not as a zero."
+        "and is counted in the status column of the summary table, not as a zero.",
     )
-    return tex.header(command, str(campaign.directory)) + tex.BOOKTABS_FALLBACK + "\n" + tex.table(
-        "@{}llr" + "r" * len(columns) + "rr@{}",
-        ["method", "conf.", "n"]
+    return ts.Table(
+        colspec="@{}llr" + "r" * len(columns) + "rr@{}",
+        head=["method", "conf.", "n"]
         + [f"F1@{t:g}" for t in columns]
         + [f"acc@{primary:g}", f"comp@{primary:g}"],
-        body,
-        TOLERANCES_CAPTION,
-        label(campaign, "f1-tolerances"),
-        footer,
+        rows=body,
+        caption=TOLERANCES_CAPTION,
+        label=label(campaign, "f1-tolerances"),
+        footer=footer,
     )
+
+
+def tolerances(campaign, command=COMMAND):
+    return document(tolerances_table(campaign, command), campaign, command)

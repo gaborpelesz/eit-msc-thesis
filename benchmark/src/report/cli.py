@@ -10,8 +10,12 @@
                                           status counts
     results-<campaign>-phases.tex         exclusive phase share per method
     results-<campaign>-f1-tolerances.tex  F1 at every evaluated tolerance
+    results-<campaign>-<table>.typ        the same three tables for Typst, each
+    results-<campaign>-<table>.table.json   a `.typ` that loads its data file
     figures/results-<campaign>-phase-shares.tex   stacked bars (pgfplots)
     figures/results-<campaign>-wall-f1.tex        wall time vs F1 (pgfplots)
+
+The figures exist as pgfplots only; they have no Typst counterpart yet.
 
 `summary` prints the same aggregates as text, for checking a campaign without
 touching the manuscript tree.
@@ -29,6 +33,7 @@ import sys
 from pathlib import Path
 
 from deviations import manifest as mf
+from deviations import typst
 
 from . import figures as fg
 from . import load as ld
@@ -46,18 +51,19 @@ def render_campaign(campaign, out_dir, with_figures=True, command=tb.COMMAND):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     rows, disagreements = ld.phase_rows(campaign)
+    source = str(campaign.directory)
 
-    written = [
-        (out_dir / f"results-{campaign.name}-summary.tex", tb.summary(campaign, command)),
-        (
-            out_dir / f"results-{campaign.name}-phases.tex",
-            tb.phases(campaign, rows, disagreements, command),
-        ),
-        (
-            out_dir / f"results-{campaign.name}-f1-tolerances.tex",
-            tb.tolerances(campaign, command),
-        ),
+    tables = [
+        ("summary", tb.summary_table(campaign, command)),
+        ("phases", tb.phases_table(campaign, rows, disagreements, command)),
+        ("f1-tolerances", tb.tolerances_table(campaign, command)),
     ]
+    written = [
+        (out_dir / f"{tb.stem(campaign, kind)}.tex", tb.document(table, campaign, command))
+        for kind, table in tables
+    ]
+    for kind, table in tables:
+        written += typst.artefacts(table, out_dir, tb.stem(campaign, kind), command, source)
     if with_figures:
         figure_dir = out_dir / "figures"
         figure_dir.mkdir(parents=True, exist_ok=True)
