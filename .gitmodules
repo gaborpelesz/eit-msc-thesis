@@ -51,4 +51,4 @@
 	url = https://github.com/gaborpelesz/quorum-mvs.git
 [submodule "thesis"]
 	path = thesis
-	url = https://github.com/gaborpelesz/eit-msc-thesis-typst.git
+	url = https://github.com/gaborpelesz/eit-msc-thesis-manuscript.git
