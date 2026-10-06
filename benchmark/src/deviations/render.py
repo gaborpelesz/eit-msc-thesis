@@ -308,6 +308,11 @@ def _plain(value, limit=None):
     return [ts.text(tex.oneline(value, limit))]
 
 
+def _ident(value):
+    """A manifest identifier list (class, affects, reversible) as one cell."""
+    return [ts.ident(tex.oneline(value))]
+
+
 def deviations_table(doc):
     rows = []
     for method in doc["methods"]:
@@ -336,11 +341,11 @@ def deviations_table(doc):
                 [
                     _plain(method["name"]) if index == 0 else [],
                     [ts.mono(tex.oneline(_short(commit["sha"])))],
-                    _plain(commit.get("deviation")) if commit.get("deviation") else [ts.DASH],
-                    _plain(commit.get("affects")) if commit.get("affects") else [ts.DASH],
+                    _ident(commit.get("deviation")) if commit.get("deviation") else [ts.DASH],
+                    _ident(commit.get("affects")) if commit.get("affects") else [ts.DASH],
                     # Never truncated: how a deviation is reversed is the
                     # policy-critical half of the disclosure.
-                    _plain(commit.get("reversible")) if commit.get("reversible") else [ts.DASH],
+                    _ident(commit.get("reversible")) if commit.get("reversible") else [ts.DASH],
                     _plain(commit["subject"], limit=110),
                 ]
             )

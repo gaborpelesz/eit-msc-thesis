@@ -9,7 +9,7 @@ built once as a `Table` of `Seg` runs and then written out twice:
 * `deviations.typst` -- a JSON data file plus a small `.typ` that loads it.
 
 A cell is a list of segments. Each segment says what its text *is* (plain,
-monospace, emphasised, a URL, a superscript) and never carries markup of
+an identifier, monospace, emphasised, a URL, a superscript) and never carries markup of
 either language; the two writers add their own. A `lit` segment is the one
 exception: a typographic token (an en dash, a thin space, `+-`) whose LaTeX
 spelling is a macro and whose Typst spelling is a Unicode character, kept
@@ -24,13 +24,22 @@ from . import latex as tex
 
 @dataclass(frozen=True)
 class Seg:
-    kind: str  # text | mono | emph | url | sup | lit
+    kind: str  # text | ident | mono | emph | url | sup | lit
     text: str
     latex: str = ""  # `lit` only: how LaTeX spells the token
 
 
 def text(value):
     return Seg("text", str(value))
+
+
+def ident(value):
+    """Plain text that is an identifier list (`timing,memory`, `MVS_BENCH_PHASES`).
+
+    Identical to `text` in LaTeX. Typst gets line-break opportunities after
+    `, _ = /` in it, which plain prose and numbers must not have.
+    """
+    return Seg("ident", str(value))
 
 
 def mono(value):
@@ -87,7 +96,7 @@ class Table:
 
 
 def seg_tex(seg):
-    if seg.kind == "text":
+    if seg.kind in ("text", "ident"):
         return tex.escape(seg.text)
     if seg.kind == "mono":
         return f"\\texttt{{{tex.escape(seg.text)}}}"

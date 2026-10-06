@@ -18,7 +18,8 @@ its `longtable` counterpart does.
 
 A cell in the JSON is one run or a list of runs, where a run is a string or a
 one-key object naming what the text is: `{"mono": ...}`, `{"emph": ...}`,
-`{"url": ...}`, `{"sup": ...}`. Typst inserts a string as text, never as
+`{"url": ...}`, `{"sup": ...}`, `{"ident": ...}` (plain text that may break
+after `, _ = /`; monospace runs may too). Typst inserts a string as text, never as
 markup, so no cell needs escaping. The JSON is not CSV even for the plainest
 table because the runs are part of the data (a commit SHA is monospace in
 every table that shows one).
@@ -34,7 +35,7 @@ HEADER = (
 
 # What a Typst `<label>` literal may contain; anything else is written with
 # `label("...")`, which takes any string.
-_LABEL = re.compile(r"^[A-Za-z0-9_\-:.]+$")
+_LABEL = re.compile(r"[A-Za-z0-9_\-:.]+")
 
 _COLUMN = re.compile(r"[lrc]|p\{([0-9.]+)\\linewidth\}")
 
@@ -47,8 +48,24 @@ def data_name(stem):
 
 def typst_string(value):
     """A Typst string literal."""
-    escaped = str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    escaped = (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
     return f'"{escaped}"'
+
+
+def comment_safe(value):
+    """Text for a `//` comment: one line, whatever the campaign path holds.
+
+    `str.splitlines` splits on every line terminator Typst also ends a comment
+    at (LF, CR, VT, FF, NEL, U+2028, U+2029), so nothing after one can escape
+    the comment into markup.
+    """
+    return " ".join(str(value).splitlines())
 
 
 def columns(colspec):
@@ -85,7 +102,7 @@ def columns(colspec):
 def run(seg):
     if seg.kind in ("text", "lit"):
         return seg.text
-    if seg.kind in ("mono", "emph", "url", "sup"):
+    if seg.kind in ("ident", "mono", "emph", "url", "sup"):
         return {seg.kind: seg.text}
     raise ValueError(f"unknown segment kind {seg.kind!r}")
 
@@ -168,7 +185,7 @@ def source_text(table, stem, command, source):
         )
     label = (
         f"<{table.label}>"
-        if _LABEL.match(table.label)
+        if _LABEL.fullmatch(table.label)
         else f"#label({typst_string(table.label)})"
     )
     footer_cell = f"table.cell(colspan: {len(widths)}, align: left, cell(data.footer)),"
@@ -182,17 +199,41 @@ def source_text(table, stem, command, source):
         tail = [f"rule({HEAVY}),"] + ([footer_cell] if table.footer else [])
 
     lines = [
-        HEADER.format(command=command, source=source).rstrip("\n"),
-        f"// Data: {stem}.table.json, next to this file. Typeset with",
-        f'//     #include "generated/{stem}.typ"',
+        HEADER.format(command=comment_safe(command), source=comment_safe(source)).rstrip(
+            "\n"
+        ),
+        f"// Data: {comment_safe(data_name(stem))}, next to this file. Typeset with",
+        f'//     #include "generated/{comment_safe(stem)}.typ"',
         "// Self-contained: needs nothing from the thesis template.",
         "",
         f"#let data = json({typst_string(data_name(stem))})",
         "",
+        "// Identifiers such as `timing,memory,quality` or `MVS_BENCH_PHASES` have no",
+        "// break opportunity, and Typst overprints the next column rather than",
+        "// overflow it. Each piece ending in , _ = / goes in its own inline box:",
+        "// a line may break between boxes, and no character is added to the text",
+        "// (a zero-width space would be copied and searched with the identifier).",
+        "// Only `ident` and `mono` runs get this; prose, numbers and links do not.",
+        "#let pieces(s, style) = {",
+        "  let out = ()",
+        '  for (i, word) in s.split(" ").enumerate() {',
+        "    // Spaces stay outside the boxes, so a wrapped line never starts with one.",
+        "    if i > 0 { out.push([ ]) }",
+        '    let piece = ""',
+        "    for c in word.clusters() {",
+        "      piece += c",
+        '      if c in (",", "_", "=", "/") { out.push(box(style(piece))); piece = "" }',
+        "    }",
+        '    if piece != "" { out.push(box(style(piece))) }',
+        "  }",
+        "  out.join()",
+        "}",
+        "",
         "// A cell is one run or a list of runs; a run is a string or a one-key",
         "// dictionary naming what its text is.",
         "#let seg(s) = if type(s) == str { s } "
-        'else if "mono" in s { raw(s.mono) } '
+        'else if "ident" in s { pieces(s.ident, p => p) } '
+        'else if "mono" in s { pieces(s.mono, raw) } '
         'else if "emph" in s { emph(s.emph) } '
         'else if "url" in s { link(s.url, raw(s.url)) } '
         'else if "sup" in s { super(s.sup) } '
@@ -202,9 +243,6 @@ def source_text(table, stem, command, source):
         "",
         "#[",
         "#show figure: set block(breakable: true)",
-        "// Identifiers such as `timing,memory,quality` or `MVS_BENCH_PHASES` have no",
-        "// break opportunity; without one Typst overprints the next column.",
-        '#show table.cell: it => { show regex("[,_=/]"): m => m + sym.zws; it }',
     ]
     if table.long:
         lines.append("#set figure.caption(position: top)")

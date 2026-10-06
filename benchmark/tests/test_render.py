@@ -12,7 +12,7 @@ import pytest
 from bench import store as st
 from deviations import latex as tex
 from deviations import manifest as mf
-from conftest import braces_balance
+from conftest import braces_balance, tex_data_rows, typst_cell_tex
 from deviations import render as rd
 from deviations import typeset as ts
 from deviations import typst
@@ -184,30 +184,32 @@ def _plain(cell):
     return "".join(_plain(run) for run in cell)
 
 
-def _tex_data_rows(text, head):
-    head_row = " & ".join(head) + " \\\\"
-    return [
-        line
-        for line in text.splitlines()
-        if line.endswith("\\\\") and not line.startswith("\\") and line != head_row
-    ]
-
-
 @pytest.mark.parametrize("builder", ["deviations_table", "provenance_table"])
 def test_typst_data_matches_the_tex_row_for_row(document, builder):
-    """The two writers read one Table, so they must agree cell for cell."""
+    """Every emitted JSON cell, decoded with its wrapper, IS the .tex cell.
+
+    Exact equality, so an emptied cell or a lost `\\texttt{}` fails.
+    """
     table = getattr(rd, builder)(document)
     data = json.loads(typst.json_text(table, rd.COMMAND, rd.SOURCE))
-    tex_rows = _tex_data_rows(ts.tex_body(table), table.head)
+    writer = rd.tex_deviations if builder == "deviations_table" else rd.tex_provenance
+    tex_rows = tex_data_rows(writer(document), data["head"])
     assert len(data["rows"]) == len(tex_rows) == len(table.rows)
-    for row, line in zip(data["rows"], tex_rows):
-        assert len(row) == len(table.head)
-        for cell, tex_cell in zip(row, line[: -len(" \\\\")].split(" & ")):
-            text = _plain(cell)
-            if tex_cell.startswith("\\url{"):
-                assert tex_cell == f"\\url{{{text}}}"
-            else:
-                assert ts.cell_tex(ts.cell(text.replace("\u2013", "--"))) in tex_cell
+    for row, tex_cells in zip(data["rows"], tex_rows):
+        assert len(row) == len(tex_cells) == len(data["head"])
+        assert [typst_cell_tex(cell) for cell in row] == tex_cells
+    tex = ts.tex_body(table)
+    assert f"\\caption{{{typst_cell_tex(data['caption'])}}}" in tex
+    assert f"{{\\footnotesize {typst_cell_tex(data['footer'])}}}\\\\" in tex
+
+
+def test_typst_decoder_catches_a_lost_wrapper(document):
+    """The exact comparison above is not vacuous."""
+    tex_rows = tex_data_rows(rd.tex_deviations(document), rd.deviations_table(document).head)
+    sha_cell = tex_rows[0][1]
+    assert sha_cell.startswith("\\texttt{")
+    assert typst_cell_tex(sha_cell[len("\\texttt{"):-1]) != sha_cell
+    assert typst_cell_tex("") != sha_cell
 
 
 def test_typst_carries_label_caption_and_header(document):
@@ -296,3 +298,36 @@ def test_generated_typst_compiles(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "main.pdf").stat().st_size > 0
+
+
+def test_typst_comments_cannot_be_escaped():
+    """A line break in the source path must not end the `//` comment."""
+    table = ts.Table("l", ["a"], [[ts.cell("x")]], ts.cell("c"), "tab:x")
+    source = typst.source_text(table, "x", "cmd", "/data/evil\n#panic(\"boom\")\r\u2028x")
+    for line in source.splitlines()[:5]:
+        assert line.startswith("//") or line == ""
+    assert "#panic" not in "\n".join(
+        line for line in source.splitlines() if not line.startswith("//")
+    )
+
+
+def test_typst_label_literal_needs_a_full_match():
+    table = ts.Table("l", ["a"], [[ts.cell("x")]], ts.cell("c"), "tab:x\n")
+    source = typst.source_text(table, "x", "cmd", "src")
+    assert '#label("tab:x\\n")' in source
+    assert "<tab:x" not in source
+
+
+def test_typst_only_identifiers_may_break():
+    """Break opportunities come from boxes, never from injected characters,
+    and only `ident` and `mono` runs get them."""
+    table = rd.deviations_table(rd.document(mf.load(mf.default_manifest_path()), REPO_ROOT))
+    source = typst.source_text(table, "deviations", rd.COMMAND, rd.SOURCE)
+    assert "zws" not in source and "\u200b" not in source
+    assert "regex(" not in source
+    assert 'pieces(s.ident' in source and "pieces(s.mono, raw)" in source
+    assert "link(s.url, raw(s.url))" in source
+    data = json.loads(typst.json_text(table, rd.COMMAND, rd.SOURCE))
+    first = data["rows"][0]
+    assert first[3] == {"ident": "timing,memory,quality"}
+    assert isinstance(first[5], str)  # the summary is prose

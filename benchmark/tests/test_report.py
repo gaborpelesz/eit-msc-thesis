@@ -12,8 +12,7 @@ import subprocess
 
 import pytest
 import yaml
-from conftest import braces_balance
-from deviations import typeset as ts
+from conftest import braces_balance, tex_data_rows, typst_cell_tex
 from deviations import typst
 from report import cli as rc
 from report import figures as fg
@@ -456,19 +455,29 @@ def _tables(campaign):
     ]
 
 
-def test_typst_tables_match_the_tex_tables(campaign):
-    """Same rows, same label, same caption and footer text in both languages."""
-    for kind, table in _tables(campaign):
-        data = json.loads(typst.json_text(table, tb.COMMAND, str(campaign.directory)))
-        assert data["label"] == f"tab:results-synthetic-{kind}"
-        assert len(data["rows"]) == len(table.rows)
-        tex = tb.document(table, campaign)
+def test_typst_tables_match_the_tex_tables(campaign, tmp_path):
+    """The emitted files agree: every JSON cell, decoded, IS its .tex cell.
+
+    Reads what `render_campaign` wrote, not the in-memory table, and decodes
+    the JSON with the test's own decoder, so the comparison is between the two
+    writers' outputs.
+    """
+    out = tmp_path / "out"
+    rc.render_campaign(campaign, out, with_figures=False)
+    for kind in ("summary", "phases", "f1-tolerances"):
+        stem = f"results-synthetic-{kind}"
+        data = json.loads((out / f"{stem}.table.json").read_text())
+        tex = (out / f"{stem}.tex").read_text()
+        assert data["label"] == f"tab:{stem}"
         assert f"\\label{{{data['label']}}}" in tex
-        for row in table.rows:
-            assert " & ".join(ts.cell_tex(c) for c in row) + " \\\\" in tex
-        assert "Campaign synthetic" in _plain(data["footer"])
-        source = typst.source_text(table, tb.stem(campaign, kind), tb.COMMAND, "src")
-        assert f"<tab:results-synthetic-{kind}>" in source
+        tex_rows = tex_data_rows(tex, data["head"])
+        assert len(data["rows"]) == len(tex_rows) > 0
+        for row, tex_cells in zip(data["rows"], tex_rows):
+            assert len(row) == len(tex_cells) == len(data["head"])
+            assert [typst_cell_tex(cell) for cell in row] == tex_cells
+        assert f"\\caption{{{typst_cell_tex(data['caption'])}}}" in tex
+        assert f"{{\\footnotesize {typst_cell_tex(data['footer'])}}}\\\\" in tex
+        assert f"<tab:{stem}>" in (out / f"{stem}.typ").read_text()
 
 
 def test_typst_summary_keeps_failures_and_provenance(campaign):
