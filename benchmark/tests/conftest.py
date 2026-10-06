@@ -130,3 +130,76 @@ def tex_data_rows(text, head):
         for line in text.splitlines()
         if line.endswith("\\\\") and not line.startswith("\\") and line != head_row
     ]
+
+
+# -- PDF geometry -----------------------------------------------------------
+
+
+def _pdf_words(pdf):
+    """[[(xMin, yMin, xMax, yMax, text)] per page] from `pdftotext -bbox`."""
+    import html
+    import re
+    import subprocess
+
+    out = subprocess.run(
+        ["pdftotext", "-bbox", str(pdf), "-"], capture_output=True, text=True, check=True
+    ).stdout
+    pages = []
+    pattern = re.compile(
+        r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">(.*)</word>'
+    )
+    for line in out.splitlines():
+        if line.lstrip().startswith("<page"):
+            pages.append([])
+        match = pattern.search(line)
+        if match and pages:
+            *box, text = match.groups()
+            pages[-1].append((*map(float, box), html.unescape(text)))
+    return pages
+
+
+def table_overflow(pdf, head, aligns, left, right, stop="Generated", tol=0.3):
+    """(words checked, problems) for one generated table in a PDF.
+
+    On every page whose words include `head` as a line, each word below it
+    (up to the footer line starting with `stop`) must stay inside
+    [left, right], must not overlap the next word on its line, and must end
+    left of the next column's header when that column is left-aligned.
+    Words whose baselines are within 2.5 pt share a line, since a monospace
+    and a serif word on one line differ by about that much.
+    """
+    problems, checked = [], 0
+    for number, page in enumerate(_pdf_words(pdf), 1):
+        lines, anchors = {}, []
+        for word in sorted(page, key=lambda w: w[3]):
+            key = next((a for a in anchors if abs(a - word[3]) < 2.5), None)
+            if key is None:
+                anchors.append(word[3])
+                key = word[3]
+            lines.setdefault(key, []).append(word)
+        rows = [sorted(lines[y]) for y in sorted(lines)]
+        start = next(
+            (i for i, row in enumerate(rows) if [w[4] for w in row][: len(head)] == list(head)),
+            None,
+        )
+        if start is None:
+            continue
+        edges = [w[0] for w in rows[start][: len(head)]]
+        for row in rows[start + 1:]:
+            if row[0][4].startswith(stop):
+                break
+            for i, word in enumerate(row):
+                checked += 1
+                x0, _, x1, _, text = word
+                if x0 < left - tol or x1 > right + tol:
+                    problems.append((number, text, "outside the text block", x0, x1))
+                if i + 1 < len(row) and x1 > row[i + 1][0] + tol:
+                    problems.append((number, text, f"overlaps {row[i + 1][4]!r}", x1, row[i + 1][0]))
+                column = max((c for c, e in enumerate(edges) if e <= x0 + tol), default=0)
+                if (
+                    column + 1 < len(edges)
+                    and aligns[column + 1] == "left"
+                    and x1 > edges[column + 1] + tol
+                ):
+                    problems.append((number, text, f"into column {head[column + 1]!r}", x1))
+    return checked, problems

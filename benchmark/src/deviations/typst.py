@@ -125,17 +125,17 @@ def _chars(cell):
     return len("".join(seg.text for seg in cell or []))
 
 
-def column_widths(table):
-    """Typst column widths for `table`.
+def column_spec(table):
+    """How each column is sized: `("fit",)`, `("auto",)` or `("fr", weight)`.
 
-    Fitted columns (see `fitted_columns`) are measured in Typst. In a table
-    with a paragraph (`p{}`) column -- one meant to fill the line -- every
-    other column becomes a fractional column weighted by its longest cell in
-    characters, and a `p{f}` column weighs `f * CHARS_PER_LINE`: the table
-    fills the width and each column gets a share in proportion to what it
-    holds. `auto` columns would instead take their full natural width first
-    and leave the paragraph columns only what remains. A table without a
-    paragraph column keeps `auto` columns and its natural width.
+    Fitted columns (see `fitted_columns`) take their measured natural width.
+    In a table with a paragraph (`p{}`) column -- one meant to fill the line --
+    every other column is fractional, weighted by its longest cell in
+    characters, and a `p{f}` column weighs `f * CHARS_PER_LINE`; the `.typ`
+    turns the weights into widths, never narrower than the widest piece the
+    column cannot break. `auto` columns would instead take their full natural
+    width first and leave the paragraph columns only what remains. A table
+    without a paragraph column keeps `auto` columns and its natural width.
     """
     widths, _ = columns(table.colspec)
     fitted = set(fitted_columns(table))
@@ -143,18 +143,27 @@ def column_widths(table):
     out = []
     for index, width in enumerate(widths):
         if index in fitted:
-            out.append(f"fit({index})")
+            out.append(("fit",))
         elif not paragraph:
-            out.append(width)
+            out.append(("auto",))
         elif width.endswith("fr"):
             share = float(width[:-2]) / 100
-            out.append(f"{share * CHARS_PER_LINE:.4g}fr")
+            out.append(("fr", round(share * CHARS_PER_LINE, 4)))
         else:
             longest = max(
                 [len(table.head[index])] + [_chars(row[index]) for row in table.rows]
             )
-            out.append(f"{min(longest, MAX_WEIGHT)}fr")
+            out.append(("fr", min(longest, MAX_WEIGHT)))
     return out
+
+
+def _typst_spec(spec):
+    def one(entry):
+        if entry[0] == "fr":
+            return f'("fr", {entry[1]:g})'
+        return f'("{entry[0]}", 0)'
+
+    return "(" + ", ".join(one(e) for e in spec) + ",)"
 
 
 def fitted_columns(table):
@@ -273,7 +282,8 @@ def source_text(table, stem, command, source):
     (see the comment in the body).
     """
     _, aligns = columns(table.colspec)
-    widths = column_widths(table)
+    spec = column_spec(table)
+    widths = spec
     if len(widths) != len(table.head):
         raise ValueError(
             f"{table.label}: {len(widths)} columns in {table.colspec!r} "
@@ -313,24 +323,43 @@ def source_text(table, stem, command, source):
         "// a line may break between boxes, and no character is added to the text",
         "// (a zero-width space would be copied and searched with the identifier).",
         "// Only `ident` and `mono` runs get this; prose, numbers and links do not.",
+        "// The pieces of a word a line may break after: identifier separators",
+        "// for identifiers, the hyphen (as Unicode allows) for everything.",
+        '#let id-seps = (",", "_", "=", "/", "-")',
+        "#let chunks(w, seps) = {",
+        "  let parts = ()",
+        '  let piece = ""',
+        "  for c in w.clusters() {",
+        "    piece += c",
+        "    if c in seps { parts.push(piece); piece = \"\" }",
+        "  }",
+        '  if piece != "" { parts.push(piece) }',
+        "  parts",
+        "}",
+        "",
+        "// Identifiers such as `timing,memory,quality` or `MVS_BENCH_PHASES` have no",
+        "// break opportunity, and Typst overprints the next column rather than",
+        "// overflow it. Each piece ending in , _ = / goes in its own inline box:",
+        "// a line may break between boxes, and no character is added to the text",
+        "// (a zero-width space would be copied and searched with the identifier).",
+        "// `ident` and `mono` runs get this, and in prose a long token that is",
+        "// plainly an identifier -- a letter, a separator, 12 or more characters,",
+        "// such as CMAKE_CUDA_ARCHITECTURES or a path. Words and numbers do not.",
+        '#let identifier(w) = w.len() >= 12 and w.contains(regex("\\pL")) and w.contains(regex("[,_=/]"))',
         "#let pieces(s, style) = {",
         "  let out = ()",
         '  for (i, word) in s.split(" ").enumerate() {',
         "    // Spaces stay outside the boxes, so a wrapped line never starts with one.",
         "    if i > 0 { out.push([ ]) }",
-        '    let piece = ""',
-        "    for c in word.clusters() {",
-        "      piece += c",
-        '      if c in (",", "_", "=", "/") { out.push(box(style(piece))); piece = "" }',
-        "    }",
-        '    if piece != "" { out.push(box(style(piece))) }',
+        '    out += chunks(word, (",", "_", "=", "/")).map(p => box(style(p)))',
         "  }",
         "  out.join()",
         "}",
+        '#let prose(s) = s.split(" ").map(w => if identifier(w) { pieces(w, p => p) } else { w }).join(" ")',
         "",
         "// A cell is one run or a list of runs; a run is a string or a one-key",
         "// dictionary naming what its text is.",
-        "#let seg(s) = if type(s) == str { s } "
+        "#let seg(s) = if type(s) == str { prose(s) } "
         'else if "ident" in s { pieces(s.ident, p => p) } '
         'else if "mono" in s { pieces(s.mono, raw) } '
         'else if "emph" in s { emph(s.emph) } '
@@ -338,6 +367,18 @@ def source_text(table, stem, command, source):
         'else if "sup" in s { super(s.sup) } '
         'else { panic("unknown run in generated table: " + repr(s)) }',
         "#let cell(c) = if type(c) == array { c.map(seg).join() } else { seg(c) }",
+        "",
+        "// The pieces of a cell no line break can split, styled as they are set:",
+        "// the widest of them is the narrowest the cell's column may be.",
+        "#let atoms(c) = (if type(c) == array { c } else { (c,) }).map(r => {",
+        "  let (s, style, always) = if type(r) == str { (r, x => x, false) }",
+        '    else if "ident" in r { (r.ident, x => x, true) }',
+        '    else if "mono" in r { (r.mono, raw, true) }',
+        '    else if "url" in r { (r.url, raw, true) }',
+        '    else if "emph" in r { (r.emph, emph, false) }',
+        '    else { (r.values().first(), super, false) }',
+        '  s.split(" ").map(w => chunks(w, if always or identifier(w) { id-seps } else { ("-",) }).map(style)).flatten()',
+        "}).flatten()",
         "#let rule(w) = table.hline(stroke: w)",
         "",
         "#[",
@@ -373,15 +414,43 @@ def source_text(table, stem, command, source):
         # A `longtable` never splits a row across a page break; neither does this.
         "    set table.cell(breakable: false)",
         "    let inset = (x: 0.4em, y: 0.35em)",
-        "    context {",
+        "    layout(size => {",
+        "      let pad = 2 * inset.x.to-absolute()",
+        "      let col(i) = (data.head.at(i), ..data.rows.map(row => row.at(i)))",
         "      // A fitted column is as wide as its widest cell, header included, so",
         "      // an unbreakable token (a commit SHA) is never squeezed.",
-        "      let fit(i) = 2 * inset.x + calc.max(",
-        "        ..(data.head.at(i), ..data.rows.map(row => row.at(i)))",
-        "          .map(c => measure(cell(c)).width),",
+        "      let natural(i) = pad + calc.max(..col(i).map(c => measure(cell(c)).width))",
+        "      let least(i) = pad + calc.max(",
+        "        ..col(i).map(c => calc.max(0pt, ..atoms(c).map(a => measure(a).width))),",
         "      )",
+        f"      let spec = {_typst_spec(spec)}",
+        "      // Fractional columns share what the fitted ones leave, by weight; a",
+        "      // column whose share is below its least width gets that width and",
+        "      // drops out, and the rest share again. No cell can overflow its",
+        "      // column unless the least widths alone exceed the line.",
+        '      let widths = spec.enumerate().map(((i, s)) => if s.at(0) == "fit" { natural(i) } else if s.at(0) == "auto" { auto } else { none })',
+        '      let free = range(spec.len()).filter(i => spec.at(i).at(0) == "fr")',
+        '      let mins = range(spec.len()).map(i => if spec.at(i).at(0) == "fr" { least(i) } else { 0pt })',
+        '      let room = size.width - widths.filter(w => type(w) == length).sum(default: 0pt)',
+        "      let settled = false",
+        "      while not settled {",
+        "        settled = true",
+        "        let total = free.map(i => spec.at(i).at(1)).sum(default: 0)",
+        "        for i in free {",
+        "          let m = mins.at(i)",
+        "          if room * spec.at(i).at(1) / total < m {",
+        "            widths.at(i) = m",
+        "            room -= m",
+        "            free = free.filter(j => j != i)",
+        "            settled = false",
+        "            break",
+        "          }",
+        "        }",
+        "      }",
+        "      let total = free.map(i => spec.at(i).at(1)).sum(default: 0)",
+        "      for i in free { widths.at(i) = room * spec.at(i).at(1) / total }",
         "      table(",
-        f"        columns: ({', '.join(widths)},),",
+        "        columns: widths,",
         f"        align: ({', '.join(aligns)},),",
         "        inset: inset,",
         "        stroke: none,",
@@ -394,8 +463,8 @@ def source_text(table, stem, command, source):
         "        ..data.rows.map(row => row.map(cell)).flatten(),",
     ]
     lines += [f"        {line}" for line in tail]
-    lines += ["      )", "    }"]
-    # Outside the `context`: the table breaks across pages only as long as
+    lines += ["      )", "    })"]
+    # Outside the `layout`: the table breaks across pages only as long as
     # nothing else is laid out with it there.
     if after:
         lines += [

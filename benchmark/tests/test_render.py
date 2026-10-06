@@ -13,7 +13,7 @@ import pytest
 from bench import store as st
 from deviations import latex as tex
 from deviations import manifest as mf
-from conftest import braces_balance, tex_data_rows, typst_cell_tex
+from conftest import braces_balance, table_overflow, tex_data_rows, typst_cell_tex
 from deviations import render as rd
 from deviations import typeset as ts
 from deviations import typst
@@ -321,11 +321,13 @@ def test_typst_label_literal_needs_a_full_match():
 
 def test_typst_only_identifiers_may_break():
     """Break opportunities come from boxes, never from injected characters,
-    and only `ident` and `mono` runs get them."""
+    and only `ident` and `mono` runs and identifier-like prose tokens get them."""
     table = rd.deviations_table(rd.document(mf.load(mf.default_manifest_path()), REPO_ROOT))
     source = typst.source_text(table, "deviations", rd.COMMAND, rd.SOURCE)
     assert "zws" not in source and "\u200b" not in source
-    assert "regex(" not in source
+    assert "show regex(" not in source
+    # Prose breaks only inside long identifier-like tokens.
+    assert "if identifier(w) { pieces(w, p => p) } else { w }" in source
     assert 'pieces(s.ident' in source and "pieces(s.mono, raw)" in source
     assert "link(s.url, raw(s.url))" in source
     data = json.loads(typst.json_text(table, rd.COMMAND, rd.SOURCE))
@@ -342,11 +344,11 @@ def test_typst_fits_unbreakable_columns_and_weighs_the_rest(document):
     """
     deviations = rd.deviations_table(document)
     assert typst.fitted_columns(deviations) == [1, 2]  # commit, class
-    widths = typst.column_widths(deviations)
-    assert widths[1:3] == ["fit(1)", "fit(2)"]
-    assert all(w.endswith("fr") for i, w in enumerate(widths) if i not in (1, 2))
+    spec = typst.column_spec(deviations)
+    assert spec[1:3] == [("fit",), ("fit",)]
+    assert all(s[0] == "fr" for i, s in enumerate(spec) if i not in (1, 2))
     # The summary keeps the larger share it has in LaTeX (p{0.30} vs p{0.16}).
-    assert float(widths[5][:-2]) > float(widths[4][:-2])
+    assert spec[5][1] > spec[4][1]
 
     provenance = rd.provenance_table(document)
     fitted = typst.fitted_columns(provenance)
@@ -357,7 +359,7 @@ def test_typst_fits_unbreakable_columns_and_weighs_the_rest(document):
 def test_typst_table_without_paragraph_columns_keeps_auto():
     table = ts.Table("@{}lr@{}", ["a", "b"], [[ts.cell("x y"), ts.cell("1.0 2")]],
                      ts.cell("c"), "tab:x")
-    assert typst.column_widths(table) == ["auto", "auto"]
+    assert typst.column_spec(table) == [("auto",), ("auto",)]
 
 
 def test_typst_table_does_not_depend_on_the_document_defaults(document):
@@ -397,3 +399,47 @@ def test_generated_typst_compiles_under_a_hostile_template(tmp_path):
         capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(
+    shutil.which("typst") is None or shutil.which("pdftotext") is None,
+    reason="typst and pdftotext are needed",
+)
+def test_no_generated_cell_overflows_its_column(document, tmp_path):
+    """Every word of both tables stays inside its column and the text block.
+
+    Set on the ELTE template's page (A4, 35 mm / 25 mm margins, 12 pt) with
+    its cell styling, then read back word by word from the PDF: a word may
+    not end right of the next left-aligned column's header, overlap the next
+    word on its line, or leave the text block. A long identifier in prose
+    (CMAKE_CUDA_ARCHITECTURES) once ran 46 pt into the margin.
+    """
+    rd.render(mf.default_manifest_path(), methods_dir=tmp_path / "m",
+              thesis_dir=tmp_path / "generated")
+    (tmp_path / "main.typ").write_text(
+        '#set page(paper: "a4", margin: (left: 35mm, right: 25mm, y: 25mm))\n'
+        '#set text(font: "New Computer Modern", size: 12pt, hyphenate: true, lang: "en")\n'
+        "#set par(justify: true)\n"
+        "#set table(stroke: 0.4pt, inset: 6pt)\n"
+        "#show table.cell: set par(justify: true)\n"
+        "#show table.cell: set text(hyphenate: true)\n"
+        '#include "generated/deviations.typ"\n'
+        "#pagebreak()\n"
+        '#include "generated/methods-provenance.typ"\n'
+    )
+    pdf = tmp_path / "main.pdf"
+    result = subprocess.run(
+        ["typst", "compile", "--root", str(tmp_path), str(tmp_path / "main.typ"), str(pdf)],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    mm = 72 / 25.4
+    left, right = 35 * mm, (210 - 25) * mm
+    for table, aligns in (
+        (rd.deviations_table(document), ["left"] * 6),
+        (rd.provenance_table(document), ["left"] * 6 + ["right"]),
+    ):
+        checked, problems = table_overflow(pdf, table.head, aligns, left, right)
+        # Every row was read: at least one word per cell.
+        assert checked >= len(table.rows) * len(table.head)
+        assert problems == []
