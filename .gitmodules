@@ -49,3 +49,6 @@
 [submodule "quorum-mvs"]
 	path = benchmark/methods/quorum-mvs
 	url = https://github.com/gaborpelesz/quorum-mvs.git
+[submodule "thesis"]
+	path = thesis
+	url = https://github.com/gaborpelesz/eit-msc-thesis-latex.git
